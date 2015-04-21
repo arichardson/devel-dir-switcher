@@ -1,0 +1,50 @@
+#!/bin/bash
+# file: get_devel_dir_completion
+# get_devel_dir.py parameter-completion
+
+_get_devel_dir_completion()   #  By convention, the function name
+{                 #+ starts with an underscore.
+    local cur prev opts base first
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+    cmd="${COMP_WORDS[0]}"
+
+    # TODO: BASH conditionals ...
+    if [[ "$COMP_CWORD" -gt 1 ]]; then
+        if [[ "$cmd" = "cs" ]]; then
+            # cs and cb only require one arg
+            COMPREPLY=()
+            return 0
+        elif [[ "$cmd" = "cb" ]]; then
+            # cs and cb only require one arg
+            COMPREPLY=()
+            return 0
+        elif [[ "$COMP_CWORD" -gt 2 ]]; then
+            # definitively no more args now even when using get_devel_dir.py
+            COMPREPLY=()
+            return 0
+        fi
+    fi
+  case "$prev" in
+    cs|source|cb|build)
+      local possibilities=`get_devel_dir.py cache-lookup $cur`
+      # local possibilities="source dirs asd f g"
+      COMPREPLY=( $( compgen -W '$possibilities' -- $cur ) )
+    ;;
+    update-cache)
+      # COMPREPLY=( $( compgen -W '2 3 4 5 6 7 8 9 10 <depth>' -- $cur ) )
+      return 1
+    ;;
+    *)
+      COMPREPLY=( $( compgen -W 'source build update-cache' -- $cur ) )
+    ;;
+  esac
+
+  return 0
+}
+
+# complete -C "get_devel_dir.py bash-complete" -o dirnames get_devel_dir.py
+# complete -C "echo -e first\\nsecond\n" -o dirnames get_devel_dir.py
+complete -F _get_devel_dir_completion -o dirnames get_devel_dir.py cs cb
+#        ^^ ^^^^^^^^^^^^  Invokes the function _get_devel_dir_completion

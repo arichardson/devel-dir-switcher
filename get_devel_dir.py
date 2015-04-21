@@ -31,15 +31,23 @@ def updateCache(path, depth, cacheData, cacheFilePath):
         cacheFile.flush()
 
 
-def findInCache(path, cacheData):
-    if not path or '/' in path or path not in cacheData:
+def findInCache(path: str, cacheData):
+    if not path or '/' in path:
         return None
+    print("Finding repo", path, file=sys.stderr)
+    if path not in cacheData:
+        print("Could not find repository", path, file=sys.stderr)
+        sys.exit(1)
     dirs = cacheData[path]
-    if len(dirs) == 1:
+    if len(dirs) == 0:
+        print("Corrupted cache file:", path, "is empty!", file=sys.stderr)
+        sys.exit(1)
+    elif len(dirs) == 1:
         return dirs[0]
     print("Multiple source directories found for name", path, file=sys.stderr)
     for i, s in enumerate(dirs):
         print('  [' + str(i) + ']', s, file=sys.stderr)
+    chose = ""
     try:
         # input prompts on stdout, but we read stdout -> print to stderr instead
         print('Which one did you mean? ', file=sys.stderr, end='')
@@ -62,7 +70,7 @@ if len(sys.argv) < 2:
     sys.exit("Need at least one argument!")
 
 type = sys.argv[1]
-path = sys.argv[2] if len(sys.argv) >= 3 else None
+path = sys.argv[2] if len(sys.argv) >= 3 else ""
 cwd = os.path.realpath(os.getcwd()) + '/'
 
 cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
@@ -107,5 +115,25 @@ elif type == "update-cache":
 
     print('saving to', cacheFilePath, file=sys.stderr)
     updateCache(path, depth, cacheData, cacheFilePath)
+elif type == "cache-lookup":
+    # return all possibilities when no arg passed, otherwise filter
+    candidates = []
+    if len(path) > 0:
+        for k in cacheData.keys():
+            if k.startswith(path):
+                candidates.append(k)
+    else:
+        # just return all of them
+        candidates = cacheData.keys()
+    output_result(" ".join(candidates))
+elif type == "bash-complete":
+    # argv[0]: command
+    # argv[1]: "bash-complete"
+    # argv[2]: command to complete (get_devel_dir.py)
+    # argv[3]: current word
+    # argv[4]: previous word
+    # print(sys.argv)
+    # raise RuntimeError()
+    pass
 else:
     sys.exit("Type must be be eiter 'build' or 'source'")
