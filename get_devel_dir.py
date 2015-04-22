@@ -20,8 +20,10 @@ def updateCache(path, depth, cacheData, cacheFilePath):
         d = os.path.realpath(d)
         repoName = os.path.basename(d)
         if repoName not in cacheData:
+            print('Adding repo', d, 'in', repoName, file=sys.stderr)
             cacheData[repoName] = [d]
         elif d not in cacheData[repoName]:
+            print('Adding', d, 'as another repo for', repoName, file=sys.stderr)
             cacheData[repoName].append(d)
         else:
             print('Repo', d, 'already exists in cache', file=sys.stderr)
@@ -34,7 +36,7 @@ def updateCache(path, depth, cacheData, cacheFilePath):
 def findInCache(path: str, cacheData):
     if not path or '/' in path:
         return None
-    print("Finding repo", path, file=sys.stderr)
+    # print("Finding repo", path, file=sys.stderr)
     if path not in cacheData:
         print("Could not find repository", path, file=sys.stderr)
         sys.exit(1)
@@ -47,7 +49,7 @@ def findInCache(path: str, cacheData):
     print("Multiple source directories found for name", path, file=sys.stderr)
     for i, s in enumerate(dirs):
         print('  [' + str(i) + ']', s, file=sys.stderr)
-    chose = ""
+    chose = "<none>"
     try:
         # input prompts on stdout, but we read stdout -> print to stderr instead
         print('Which one did you mean? ', file=sys.stderr, end='')
