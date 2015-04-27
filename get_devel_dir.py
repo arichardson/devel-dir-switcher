@@ -105,7 +105,13 @@ elif type == "source":
         output_result(cachedSourceDir)
     path = cwd
     if path.startswith(builddir):
-        output_result(path.replace(builddir, sourcedirs[0]))
+        for dir in sourcedirs:
+            srcdir = path.replace(builddir, dir)
+            # print("checking ", srcdir, file=sys.stderr)
+            if os.path.isdir(srcdir):
+                output_result(srcdir)
+        print("Could not find source dir for", path)
+        output_result(cwd)
     for sourcedir in sourcedirs:
         if path.startswith(sourcedir) or path == sourcedir:
             sys.stderr.write("Already in source dir.\n")
