@@ -46,5 +46,5 @@ _get_devel_dir_completion()   #  By convention, the function name
 
 # complete -C "get_devel_dir.py bash-complete" -o dirnames get_devel_dir.py
 # complete -C "echo -e first\\nsecond\n" -o dirnames get_devel_dir.py
-complete -F _get_devel_dir_completion -o dirnames get_devel_dir.py cs cb
+complete -F _get_devel_dir_completion -o dirnames get_devel_dir.py cs cb csir cbir
 #        ^^ ^^^^^^^^^^^^  Invokes the function _get_devel_dir_completion

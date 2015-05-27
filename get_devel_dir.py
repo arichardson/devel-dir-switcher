@@ -5,7 +5,10 @@ import sys
 import os
 import subprocess
 
-builddir = "/build/"
+builddir = os.getenv("CURRENT_BUILD_ROOT") or "/build/"
+if not builddir.endswith("/"):
+    builddir += "/"
+
 sourcedirs = ["/home/alex/devel/", "/staticdata/sources/"]
 
 
@@ -48,15 +51,17 @@ def findInCache(path: str, cacheData):
         return dirs[0]
     print("Multiple source directories found for name", path, file=sys.stderr)
     for i, s in enumerate(dirs):
-        print('  [' + str(i) + ']', s, file=sys.stderr)
-    chose = "<none>"
+        print('  [' + str(i + 1) + ']', s, file=sys.stderr)
+    chosen = "<none>"
     try:
         # input prompts on stdout, but we read stdout -> print to stderr instead
         print('Which one did you mean? ', file=sys.stderr, end='')
         chosen = input()
-        return dirs[int(chosen)]
+        if int(chosen) < 1 or int(chosen) > len(dirs):
+            raise RuntimeError("Out of range")
+        return dirs[int(chosen) - 1]
     except:
-        sys.exit('Invalid choice:' + chosen)
+        sys.exit('Invalid choice: ' + chosen)
 
 
 def output_result(r):
@@ -73,7 +78,7 @@ if len(sys.argv) < 2:
 
 type = sys.argv[1]
 path = sys.argv[2] if len(sys.argv) >= 3 else ""
-cwd = os.path.realpath(os.getcwd()) + '/'
+realCwd = os.path.realpath(os.getcwd() + '/')
 
 cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
 cacheFilePath = os.path.join(cacheDir, "devel-dirs.cache")
@@ -90,7 +95,7 @@ if type == "build":
     if cachedSourceDir:
         path = cachedSourceDir
     else:
-        path = cwd
+        path = realCwd
     if path.startswith(builddir) or path == builddir:
         sys.stderr.write("Already in build dir.\n")
         output_result(path)
@@ -103,21 +108,27 @@ elif type == "source":
     cachedSourceDir = findInCache(path, cacheData)
     if cachedSourceDir:
         output_result(cachedSourceDir)
-    path = cwd
-    if path.startswith(builddir):
+    for sourcedir in sourcedirs:
+        if realCwd.startswith(sourcedir) or realCwd == sourcedir:
+            sys.stderr.write("Already in source dir.\n")
+            output_result(realCwd)
+
+    def getCorrespondingSourceDir(path):
         for dir in sourcedirs:
             srcdir = path.replace(builddir, dir)
             # print("checking ", srcdir, file=sys.stderr)
             if os.path.isdir(srcdir):
                 output_result(srcdir)
-        print("Could not find source dir for", path)
-        output_result(cwd)
-    for sourcedir in sourcedirs:
-        if path.startswith(sourcedir) or path == sourcedir:
-            sys.stderr.write("Already in source dir.\n")
-            output_result(path)
-    # not in build dir before -> change to source dir root
-    output_result(sourcedirs[0])
+        print("Could not find source dir for", path, file=sys.stderr)
+        output_result(path)
+    # path might be empty in that case this condition will always be false
+    if path.startswith(builddir):
+        getCorrespondingSourceDir(path)
+    elif realCwd.startswith(builddir):
+        getCorrespondingSourceDir(realCwd)
+    else:
+        # not in source dir before -> change to source dir root
+        output_result(sourcedirs[0])
 elif type == "update-cache":
     depth = sys.argv[3] if len(sys.argv) >= 4 else 2
 
