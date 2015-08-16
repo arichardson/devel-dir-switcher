@@ -70,7 +70,7 @@ def output_result(r):
 
 
 if "--help" in sys.argv:
-    print("Usage: get_devel_dir.py source|build [dir]")
+    print("Usage: get_devel_dir.py source|build|update-cache [dir]")
     sys.exit()
 
 if len(sys.argv) < 2:
