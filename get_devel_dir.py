@@ -68,10 +68,14 @@ def output_result(r):
     print(r)
     sys.exit()
 
-
-if "--help" in sys.argv:
-    print("Usage: get_devel_dir.py source|build|update-cache [dir]")
+def usage():
+    print("Usage: get_devel_dir.py source|build <dir>")
+    print("Usage: get_devel_dir.py update-cache <root dir> [depth]")
+    print("Usage: get_devel_dir.py check-cache|cleanup-cache")
     sys.exit()
+
+if "--help" in sys.argv or "-h" in sys.argv:
+    usage()
 
 if len(sys.argv) < 2:
     sys.exit("Need at least one argument!")
@@ -185,4 +189,5 @@ elif type == "bash-complete":
     # raise RuntimeError()
     pass
 else:
-    sys.exit("Type must be be eiter 'build' or 'source'")
+    print("Invalid arguments", sys.argv[1:])
+    usage()
