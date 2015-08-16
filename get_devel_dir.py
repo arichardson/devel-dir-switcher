@@ -145,6 +145,36 @@ elif type == "cache-lookup":
         # just return all of them
         candidates = cacheData.keys()
     output_result(" ".join(candidates))
+elif type == "check-cache":
+    if len(cacheData) == 0:
+        print("Cache is empty")
+        sys.exit(0)
+    for key, values in cacheData.items():
+        # print("key =", key, "values=", values)
+        for path in values:
+            if not os.path.isdir(path):
+                print(key, "->", path, "no longer exists!")
+elif type == "cleanup-cache":
+    # make a copy since we are modifying while iterating
+    cacheDataCopy = dict(cacheData)
+    if len(cacheData) == 0:
+        print("Cache is empty")
+        sys.exit(0)
+    for key, values in cacheData.items():
+        # print("key =", key, "values=", values)
+        for path in values:
+            if not os.path.isdir(path):
+                if len(values) > 1:
+                    values.remove(path)
+                    cacheDataCopy[key] = values
+                    print("Removed", path, "from cache for", key)
+                    print("   remaining paths are:", values)
+                else:
+                    del cacheDataCopy[key]
+                    print("Removed", key, "from cache as it no longer exists")
+    with open(cacheFilePath, 'w+') as cacheFile:
+        json.dump(cacheDataCopy, cacheFile, indent=4)
+        cacheFile.flush()
 elif type == "bash-complete":
     # argv[0]: command
     # argv[1]: "bash-complete"
