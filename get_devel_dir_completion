@@ -4,7 +4,7 @@
 
 _get_devel_dir_completion()   #  By convention, the function name
 {                 #+ starts with an underscore.
-    local cur prev opts base first
+    local cur prev cmd
     COMPREPLY=()
     cur="${COMP_WORDS[COMP_CWORD]}"
     prev="${COMP_WORDS[COMP_CWORD-1]}"
@@ -28,16 +28,17 @@ _get_devel_dir_completion()   #  By convention, the function name
     fi
   case "$prev" in
     cs|source|cb|build)
-      local possibilities=`get_devel_dir.py cache-lookup $cur`
+      local possibilities
+      possibilities=$(get_devel_dir.py cache-lookup "$cur")
       # local possibilities="source dirs asd f g"
-      COMPREPLY=( $( compgen -W '$possibilities' -- $cur ) )
+      COMPREPLY=( $( compgen -W "$possibilities" -- "$cur" ) )
     ;;
     update-cache)
       # COMPREPLY=( $( compgen -W '2 3 4 5 6 7 8 9 10 <depth>' -- $cur ) )
       return 1
     ;;
     *)
-      COMPREPLY=( $( compgen -W 'source build update-cache' -- $cur ) )
+      COMPREPLY=( $( compgen -W 'source build update-cache' -- "$cur" ) )
     ;;
   esac
 
