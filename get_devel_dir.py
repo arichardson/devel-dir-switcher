@@ -5,6 +5,8 @@ import sys
 import os
 import subprocess
 
+# TODO: fail if these environment vars are not set? might be better
+
 builddir = os.getenv("CURRENT_BUILD_ROOT") or "/build/"
 if not builddir.endswith("/"):
     builddir += "/"
