@@ -38,7 +38,7 @@ _get_devel_dir_completion()   #  By convention, the function name
       return 1
     ;;
     *)
-      COMPREPLY=( $( compgen -W 'source build update-cache' -- "$cur" ) )
+      COMPREPLY=( $( compgen -W 'source build update-cache check-cache cleanup-cache' -- "$cur" ) )
     ;;
   esac
 
