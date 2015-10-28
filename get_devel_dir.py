@@ -16,7 +16,7 @@ def updateCache(path, depth, cacheData, cacheFilePath):
     dirs = subprocess.check_output(['find', path, '-maxdepth', str(depth), '-type', 'd',
                                     '-name', '.git', '-printf', '%h\\0'])
     dirsList = dirs.decode('utf-8').split('\0')
-    print(dirsList)
+    print(dirsList, file=sys.stderr)
     for d in dirsList:
         if not d:
             continue
@@ -69,9 +69,9 @@ def output_result(r):
     sys.exit()
 
 def usage():
-    print("Usage: get_devel_dir.py source|build <dir>")
-    print("Usage: get_devel_dir.py update-cache <root dir> [depth]")
-    print("Usage: get_devel_dir.py check-cache|cleanup-cache")
+    print("Usage: get_devel_dir.py source|build <dir>", file=sys.stderr)
+    print("Usage: get_devel_dir.py update-cache <root dir> [depth]", file=sys.stderr)
+    print("Usage: get_devel_dir.py check-cache|cleanup-cache", file=sys.stderr)
     sys.exit()
 
 if "--help" in sys.argv or "-h" in sys.argv:
@@ -162,7 +162,7 @@ elif type == "cleanup-cache":
     # make a copy since we are modifying while iterating
     cacheDataCopy = dict(cacheData)
     if len(cacheData) == 0:
-        print("Cache is empty")
+        print("Cache is empty", file=sys.stderr)
         sys.exit(0)
     for key, values in cacheData.items():
         # print("key =", key, "values=", values)
@@ -171,11 +171,11 @@ elif type == "cleanup-cache":
                 if len(values) > 1:
                     values.remove(path)
                     cacheDataCopy[key] = values
-                    print("Removed", path, "from cache for", key)
-                    print("   remaining paths are:", values)
+                    print("Removed", path, "from cache for", key, file=sys.stderr)
+                    print("   remaining paths are:", values, file=sys.stderr)
                 else:
                     del cacheDataCopy[key]
-                    print("Removed", key, "from cache as it no longer exists")
+                    print("Removed", key, "from cache as it no longer exists", file=sys.stderr)
     with open(cacheFilePath, 'w+') as cacheFile:
         json.dump(cacheDataCopy, cacheFile, indent=4)
         cacheFile.flush()
@@ -189,5 +189,5 @@ elif type == "bash-complete":
     # raise RuntimeError()
     pass
 else:
-    print("Invalid arguments", sys.argv[1:])
+    print("Invalid arguments", sys.argv[1:], file=sys.stderr)
     usage()
