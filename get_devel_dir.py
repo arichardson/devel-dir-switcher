@@ -10,6 +10,10 @@ if not builddir.endswith("/"):
     builddir += "/"
 
 sourcedirs = ["/home/alex/devel/", "/staticdata/sources/"]
+if os.getenv("CURRENT_SOURCE_ROOT"):
+    sourcedirs = [d if d.endswith("/") else d + "/" for d in os.getenv("CURRENT_SOURCE_ROOT").split(":")]
+# print("sourcedirs:", sourcedirs, file=sys.stderr)
+
 
 
 def updateCache(path, depth, cacheData, cacheFilePath):
@@ -119,6 +123,8 @@ elif type == "source":
 
     def getCorrespondingSourceDir(path):
         for dir in sourcedirs:
+            if not dir.endswith("/"):
+                dir += "/"
             srcdir = path.replace(builddir, dir)
             # print("checking ", srcdir, file=sys.stderr)
             if os.path.isdir(srcdir):
