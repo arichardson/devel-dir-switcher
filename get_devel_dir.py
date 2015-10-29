@@ -5,16 +5,20 @@ import sys
 import os
 import subprocess
 
-# TODO: fail if these environment vars are not set? might be better
-
-builddir = os.getenv("CURRENT_BUILD_ROOT") or "/build/"
+builddir = os.getenv("CURRENT_BUILD_ROOT")
+if not builddir:
+    sys.exit("CURRENT_BUILD_ROOT environment variable must be set to the root build dir (e.g. /build/)")
 if not builddir.endswith("/"):
     builddir += "/"
 
-sourcedirs = ["/home/alex/devel/", "/staticdata/sources/"]
-if os.getenv("CURRENT_SOURCE_ROOT"):
-    sourcedirs = [d if d.endswith("/") else d + "/" for d in os.getenv("CURRENT_SOURCE_ROOT").split(":")]
-# print("sourcedirs:", sourcedirs, file=sys.stderr)
+if not os.getenv("CURRENT_SOURCE_ROOT"):
+    sys.exit("CURRENT_SOURCE_ROOT environment variable must be set to a colon separated list of source dirs (e.g. /local/sources:/foo/bar/src/)")
+sourcedirs = os.getenv("CURRENT_SOURCE_ROOT").split(":")
+# remove empty entries (e.g. if it ends with a colon we don't want to add / as a source dir)
+sourcedirs = filter(None, sourcedirs)
+# make sure all of them end with a slash
+sourcedirs = [d if d.endswith("/") else d + "/" for d in sourcedirs]
+# print("sourcedirs:", sourcedirs, "builddir:", builddir, file=sys.stderr)
 
 
 
