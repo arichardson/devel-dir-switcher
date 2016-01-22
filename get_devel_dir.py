@@ -23,14 +23,14 @@ sourcedirs = [d if d.endswith("/") else d + "/" for d in sourcedirs]
 
 
 def updateCache(path, depth, cacheData, cacheFilePath):
-    dirs = subprocess.check_output(['find', path, '-maxdepth', str(depth), '-type', 'd',
-                                    '-name', '.git', '-printf', '%h\\0'])
-    dirsList = dirs.decode('utf-8').split('\0')
-    print(dirsList, file=sys.stderr)
+    dotgitDirsList = subprocess.check_output(['find', path, '-maxdepth', str(depth), '-type', 'd',
+                                    #'-name', '.git', '-printf', '%h\\0'])
+                                    '-name', '.git', '-print0']).decode('utf-8').split('\0')
+    # -printf does not work on FreeBSD
+    # we need to go up one dir from .git and use the absolute path
+    dirsList = [os.path.realpath(os.path.dirname(p)) for p in dotgitDirsList if p]
+    print(list(dirsList), file=sys.stderr)
     for d in dirsList:
-        if not d:
-            continue
-        d = os.path.realpath(d)
         repoName = os.path.basename(d)
         if repoName not in cacheData:
             print('Adding repo', d, 'in', repoName, file=sys.stderr)
