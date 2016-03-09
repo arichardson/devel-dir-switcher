@@ -182,11 +182,11 @@ parser = argparse.ArgumentParser()
 subparsers = parser.add_subparsers(dest='subparser_name', help='sub-command help')
 
 parser_source = subparsers.add_parser('source', help='Get path to source dir')
-parser_source.add_argument('repository_name', nargs='?', help='The name of the repository')
+parser_source.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
 parser_source.set_defaults(func=get_source_dir)
 
 parser_build = subparsers.add_parser('build', help='Get path to build dir')
-parser_build.add_argument('repository_name', nargs='?', help='The name of the repository')
+parser_build.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
 parser_build.set_defaults(func=get_build_dir)
 
 parser_cache_lookup = subparsers.add_parser('cache-lookup', help='Get all repositories that start with given prefix')
