@@ -103,8 +103,7 @@ def get_source_dir(args: argparse.Namespace):
 
 def update_cache(args: argparse.Namespace):
     print('saving to', cacheFilePath, file=sys.stderr)
-    dotgitDirsList = subprocess.check_output(['find', args.path, '-maxdepth', str(args.depth), '-type', 'd',
-                                              # '-name', '.git', '-printf', '%h\\0'])
+    dotgitDirsList = subprocess.check_output(['find', args.path, '-maxdepth', str(args.depth),
                                               '-name', '.git', '-print0']).decode('utf-8').split('\0')
     # -printf does not work on FreeBSD
     # we need to go up one dir from .git and use the absolute path
