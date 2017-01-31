@@ -130,12 +130,12 @@ class DevelDirs(object):
             override_src = Directory(override["source"])
             new_dir = path.try_replace_prefix(override_src, override["build"])
             if new_dir:
-                output_result(new_dir.path)
+                output_result(new_dir)
 
         for src, build in self.src_to_build_mapping:
             new_dir = path.try_replace_prefix(Directory(src), build)
             if new_dir:
-                output_result(new_dir.path)
+                output_result(new_dir)
 
         # final fallback: not in build dir before -> change to build dir root
         output_result(self.build_dirs[0])
@@ -162,12 +162,12 @@ class DevelDirs(object):
             override_build = Directory(override["build"])
             new_dir = cwd.try_replace_prefix(override_build, override["source"])
             if new_dir:
-                output_result(new_dir.path)
+                output_result(new_dir)
 
         for src, build in self.src_to_build_mapping:
             new_dir = cwd.try_replace_prefix(Directory(build), src)
             if new_dir:
-                output_result(new_dir.path)
+                output_result(new_dir)
 
         # final fallback: not in source dir before -> change to default source dir
         output_result(self.source_dirs[0])
