@@ -10,9 +10,10 @@ import typing
 
 
 def debug(*args, **kwargs):
-    print("\x1b[1;33m", end="", file=sys.stderr)
-    print(*args, file=sys.stderr, end="", **kwargs)
-    print("\x1b[0m", file=sys.stderr)
+    if False:
+        print("\x1b[1;33m", end="", file=sys.stderr)
+        print(*args, file=sys.stderr, end="", **kwargs)
+        print("\x1b[0m", file=sys.stderr)
 
 
 def warning(*args, **kwargs):
