@@ -6,7 +6,7 @@ import os
 import subprocess
 import argparse
 import itertools
-from typing import Optional, List, Iterable
+from typing import Optional, List, Iterable, Sequence
 
 
 def debug(*args, **kwargs):
@@ -72,8 +72,9 @@ class Directory(object):
 class DirMapping(object):
     def __init__(self, value: dict):
         self.source = Directory(os.path.expandvars(value["source"]))
-        buildJson = value["build"]
-        self.build = Directory(os.path.expandvars(buildJson)) if buildJson else None
+        build_json = value["build"]
+        self.build = Directory(os.path.expandvars(build_json)) if build_json else None
+        self.build_suffixes = value.get("build-suffixes", [])  # type: List[str]
 
     def __repr__(self):
         return repr(self.source) + " -> " + repr(self.build)
@@ -110,6 +111,25 @@ class DevelDirs(object):
         # we only iterate over this once, make it a lazy property
         return map(DirMapping, self.config_data.get("overrides", []))
 
+    @staticmethod
+    def prompt_from_choices(*msg, choices: Sequence[str]) -> Directory:
+        assert len(choices) > 0
+        if len(choices) == 1:
+            return Directory(choices[0])
+        print(*msg, file=sys.stderr)
+        for i, s in enumerate(choices):
+            print('  [' + str(i + 1) + ']', s, file=sys.stderr)
+        chosen = "<none>"
+        try:
+            # input prompts on stdout, but we read stdout -> print to stderr instead
+            print('Which one did you mean? ', file=sys.stderr, end='')
+            chosen = input()
+            if int(chosen) < 1 or int(chosen) > len(choices):
+                raise RuntimeError("Out of range")
+            return Directory(choices[int(chosen) - 1])
+        except:
+            die("Invalid choice: ", chosen)
+
     def get_dir_for_repo(self, repo_name: str) -> Optional[Directory]:
         debug("Finding repo", repo_name)
         if repo_name not in self.cache_data:
@@ -118,21 +138,7 @@ class DevelDirs(object):
         dirs = self.cache_data[repo_name]
         if len(dirs) == 0:
             die("Corrupted cache file:", repo_name, "is empty!")
-        elif len(dirs) == 1:
-            return Directory(dirs[0])
-        print("Multiple source directories found for name", repo_name, file=sys.stderr)
-        for i, s in enumerate(dirs):
-            print('  [' + str(i + 1) + ']', s, file=sys.stderr)
-        chosen = "<none>"
-        try:
-            # input prompts on stdout, but we read stdout -> print to stderr instead
-            print('Which one did you mean? ', file=sys.stderr, end='')
-            chosen = input()
-            if int(chosen) < 1 or int(chosen) > len(dirs):
-                raise RuntimeError("Out of range")
-            return Directory(dirs[int(chosen) - 1])
-        except:
-            sys.exit('Invalid choice: ' + chosen)
+        return self.prompt_from_choices("Multiple source directories found for name", repo_name, choices=dirs)
 
     def get_build_dir(self, args: argparse.Namespace):
         if args.repository_name:
@@ -154,10 +160,45 @@ class DevelDirs(object):
                 output_result(new_dir)
 
         for mapping in self.directories:
-            if path.is_subdirectory_of(mapping.source):
-                if not mapping.build:
-                    die("No build directory defined for source root", mapping.source)
-                output_result(path.replace_prefix(mapping.source, mapping.build.path))
+            relative_path = path.try_replace_prefix(mapping.source, "")
+            if not relative_path:
+                continue
+            if not mapping.build:
+                die("No build directory defined for source root", mapping.source)
+            default_result = mapping.build.path + relative_path
+            if not mapping.build_suffixes:
+                output_result(default_result)
+            # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
+            candidates = set()
+            root_candidates = set()
+            assert not relative_path.startswith("/")
+            debug("relative:", relative_path)
+            parts = list(filter(None, relative_path.split("/")))
+            debug("parts:", parts)
+            for suffix in mapping.build_suffixes + [""]:
+                for i, name in enumerate(parts):
+                    new_parts = list(parts)
+                    if name.endswith("/"):
+                        name = name[:-1]
+                    new_parts[i] = name + suffix
+                    directory = os.path.join(mapping.build.path, *new_parts)
+                    debug("checking", directory)
+                    if os.path.isdir(directory):
+                        candidates.add(directory)
+                    else:
+                        # try if this is a build directory root
+                        possible_root = os.path.join(mapping.build.path, *new_parts[:i + 1])
+                        if os.path.isdir(possible_root):
+                            root_candidates.add(possible_root)
+            debug("candidates", candidates, "root", root_candidates)
+            if candidates:
+                result = self.prompt_from_choices("Multiple build directories found", choices=list(candidates))
+                output_result(result)
+            elif root_candidates:
+                result = self.prompt_from_choices("Multiple build root directories found", choices=list(root_candidates))
+                output_result(result)
+            else:
+                die("Could not find build directory for", path)
 
         # final fallback: not in build dir before -> change to build dir root
         output_result(self.directories[0].build.path)
@@ -173,9 +214,9 @@ class DevelDirs(object):
         # find the matching source dir for CWD
         cwd = Directory(os.getcwd())
 
-        # check if we are already in a build dir:
+        # check if we are already in a source dir:
         for mapping in self.directories:
-            if cwd.is_subdirectory_of(mapping.build):
+            if cwd.is_subdirectory_of(mapping.source):
                 sys.stderr.write("Already in source dir.\n")
                 output_result(cwd)
 
@@ -189,7 +230,8 @@ class DevelDirs(object):
         for mapping in self.directories:
             if not mapping.build:
                 continue
-            new_dir = cwd.try_replace_prefix(mapping.build, mapping.source)
+            # TODO: handle suffixes...
+            new_dir = cwd.try_replace_prefix(mapping.build, mapping.source.path)
             if new_dir:
                 output_result(new_dir)
         # final fallback: not in source dir before -> change to default source dir
