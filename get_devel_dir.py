@@ -216,7 +216,7 @@ class DevelDirs(object):
 
         # check if we are already in a source dir:
         for mapping in self.directories:
-            if cwd.is_subdirectory_of(mapping.source):
+            if cwd.is_subdirectory_of(mapping.source) and not cwd.is_subdirectory_of(mapping.build):
                 sys.stderr.write("Already in source dir.\n")
                 output_result(cwd)
 
