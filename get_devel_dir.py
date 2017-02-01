@@ -6,7 +6,7 @@ import os
 import subprocess
 import argparse
 import itertools
-import typing
+from typing import Optional, List, Iterable
 
 
 def debug(*args, **kwargs):
@@ -23,6 +23,7 @@ def warning(*args, **kwargs):
 def die(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr)
     sys.exit(1)
+
 
 def output_result(r):
     print(r, file=sys.stdout)
@@ -52,11 +53,30 @@ class Directory(object):
             return True
         return False
 
-    def try_replace_prefix(self, prefix: "Directory", replacement: str) -> str:
+    def try_replace_prefix(self, prefix: "Directory", replacement: str) -> Optional[str]:
         for src, dest in itertools.product((self.path, self.real_path), (prefix.path, prefix.real_path)):
             if src.startswith(dest):
                 return src.replace(dest, replacement)
         return None
+
+    def replace_prefix(self, prefix: "Directory", replacement: str) -> str:
+        result = self.try_replace_prefix(prefix, replacement)
+        if not result:
+            die("Could not replace prefix", prefix, "with", replacement, "in", self)
+        return result
+
+    def __repr__(self):
+        return self.path
+
+
+class DirMapping(object):
+    def __init__(self, value: dict):
+        self.source = Directory(os.path.expandvars(value["source"]))
+        buildJson = value["build"]
+        self.build = Directory(os.path.expandvars(buildJson)) if buildJson else None
+
+    def __repr__(self):
+        return repr(self.source) + " -> " + repr(self.build)
 
 
 class DevelDirs(object):
@@ -65,30 +85,32 @@ class DevelDirs(object):
         with open(config_file, 'r') as f:
             self.config_data = json.load(f)  # type: dict
 
-        ensure_trailing_slash = lambda s: s if s.endswith("/") else s + "/"
-        # remove empty entries (e.g. if it ends with a colon we don't want to add / as a source dir)
-        self.build_dirs = list(filter(None, map(os.path.expandvars, map(ensure_trailing_slash, self.config_data["build-dirs"]))))
-        self.source_dirs = list(filter(None, map(os.path.expandvars, map(ensure_trailing_slash, self.config_data["source-dirs"]))))
-        # TODO: move to where it's needed
-        self.src_to_build_mapping = itertools.zip_longest(self.source_dirs, self.build_dirs,
-                                                          fillvalue=self.build_dirs[0])
-        if len(self.build_dirs) > len(self.source_dirs):
-            die("Cannot have more build dirs than source dirs")
-        debug("source dirs:", self.source_dirs, "build dirs:", self.build_dirs)
-        debug("mapping:", dict(self.src_to_build_mapping))
+        self.directories = list(map(DirMapping, self.config_data["directories"]))  # type: List[DirMapping]
+        debug("directories:", self.directories)
 
-        # Load the cache file:
         cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
         self.cache_file = os.path.join(cacheDir, "devel-dirs.cache")
-        try:
-            with open(self.cache_file, 'r') as f:
-                self.cache_data = json.load(f)
-        except IOError:
-            self.cache_data = {}
-            print('Cache data was invalid, assuming empty!', file=sys.stderr)
-        debug("Cache data:", self.cache_data)
+        self.__cache_data = None
 
-    def get_dir_for_repo(self, repo_name: str) -> typing.Optional[Directory]:
+    @property
+    def cache_data(self) -> dict:
+        if self.__cache_data is None:
+            try:
+                # Load the cache file:
+                with open(self.cache_file, 'r') as f:
+                    self.__cache_data = json.load(f)
+                    # debug("Cache data:", self.__cache_data)
+            except IOError:
+                self.__cache_data = {}
+                warning('Cache data was invalid, assuming empty!')
+        return self.__cache_data
+
+    @property
+    def overrides(self) -> Iterable[DirMapping]:
+        # we only iterate over this once, make it a lazy property
+        return map(DirMapping, self.config_data.get("overrides", []))
+
+    def get_dir_for_repo(self, repo_name: str) -> Optional[Directory]:
         debug("Finding repo", repo_name)
         if repo_name not in self.cache_data:
             warning("Could not find repository", repo_name)
@@ -119,59 +141,59 @@ class DevelDirs(object):
             path = Directory(os.path.realpath(os.getcwd()))
 
         # check if we are already in a build dir:
-        for build_dir in self.build_dirs:
-            if path.is_subdirectory_of(Directory(build_dir)):
+        for mapping in self.directories:
+            if mapping.build and path.is_subdirectory_of(mapping.build):
                 sys.stderr.write("Already in build dir.\n")
                 output_result(path)
 
         # check whether a custom mapping exists:
-        overrides = self.config_data.get("overrides", {})
-        debug("overrides:", overrides)
-        for override in overrides:
-            override_src = Directory(override["source"])
-            new_dir = path.try_replace_prefix(override_src, override["build"])
+        for override in self.overrides:
+            debug("checking override", override)
+            new_dir = path.try_replace_prefix(override.source, override.build.path)
             if new_dir:
                 output_result(new_dir)
 
-        for src, build in self.src_to_build_mapping:
-            new_dir = path.try_replace_prefix(Directory(src), build)
-            if new_dir:
-                output_result(new_dir)
+        for mapping in self.directories:
+            if path.is_subdirectory_of(mapping.source):
+                if not mapping.build:
+                    die("No build directory defined for source root", mapping.source)
+                output_result(path.replace_prefix(mapping.source, mapping.build.path))
 
         # final fallback: not in build dir before -> change to build dir root
-        output_result(self.build_dirs[0])
+        output_result(self.directories[0].build.path)
 
     def get_source_dir(self, args: argparse.Namespace):
         if args.repository_name:
             cachedSourceDir = self.get_dir_for_repo(args.repository_name)
             if cachedSourceDir:
-                output_result(cachedSourceDir.path)
+                output_result(cachedSourceDir)
             else:
                 die("Cannot find repository for", args.repository_name)
 
         # find the matching source dir for CWD
         cwd = Directory(os.getcwd())
-        for src in self.source_dirs:
-            if cwd.is_subdirectory_of(Directory(src)):
+
+        # check if we are already in a build dir:
+        for mapping in self.directories:
+            if cwd.is_subdirectory_of(mapping.build):
                 sys.stderr.write("Already in source dir.\n")
-                output_result(cwd.path)
+                output_result(cwd)
 
         # check whether a custom mapping exists:
-        overrides = self.config_data.get("overrides", {})
-        debug("overrides:", overrides)
-        for override in overrides:
-            override_build = Directory(override["build"])
-            new_dir = cwd.try_replace_prefix(override_build, override["source"])
+        for override in self.overrides:
+            debug("checking override", override)
+            new_dir = cwd.try_replace_prefix(override.build, override.source.path)
             if new_dir:
                 output_result(new_dir)
 
-        for src, build in self.src_to_build_mapping:
-            new_dir = cwd.try_replace_prefix(Directory(build), src)
+        for mapping in self.directories:
+            if not mapping.build:
+                continue
+            new_dir = cwd.try_replace_prefix(mapping.build, mapping.source)
             if new_dir:
                 output_result(new_dir)
-
         # final fallback: not in source dir before -> change to default source dir
-        output_result(self.source_dirs[0])
+        output_result(self.directories[0].source)
 
     def update_cache(self, args: argparse.Namespace):
         print('saving to', self.cache_file, file=sys.stderr)
@@ -238,10 +260,9 @@ class DevelDirs(object):
 if __name__ == "__main__":
     # FIXME: handle CWD being deleted
     realCwd = os.path.realpath(os.getcwd() + '/')
-    devel_dirs = DevelDirs()
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='subparser_name', help='sub-command help')
-
+    devel_dirs = None
     parser_source = subparsers.add_parser('source', help='Get path to source dir')
     parser_source.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
     parser_source.set_defaults(func=lambda args: devel_dirs.get_source_dir(args))
@@ -267,4 +288,5 @@ if __name__ == "__main__":
 
     # parse the args and call whatever function was selected
     parsed_args = parser.parse_args()
+    devel_dirs = DevelDirs()
     parsed_args.func(parsed_args)
