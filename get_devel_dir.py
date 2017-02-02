@@ -296,7 +296,7 @@ class DevelDirs(object):
             print("All entries in cache are valid.", file=sys.stderr)
         if not args.pretend:
             with open(self.cache_file, 'w+') as f:
-                json.dump(self.cache_data_copy, f, indent=4)
+                json.dump(cache_data_copy, f, indent=4)
                 f.flush()
 
 if __name__ == "__main__":
