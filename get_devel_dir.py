@@ -39,7 +39,7 @@ class Directory(object):
         self.__real_path = None  # type: str
 
     @property
-    def real_path(self):
+    def real_path(self) -> str:
         if self.__real_path is None:
             self.__real_path = os.path.realpath(self.path)
             assert self.__real_path.startswith("/")
