@@ -42,7 +42,9 @@ class Directory(object):
     def real_path(self) -> str:
         if self.__real_path is None:
             self.__real_path = os.path.realpath(self.path)
-            assert self.__real_path.startswith("/")
+            assert self.__real_path.startswith("/"), self.__real_path
+            if not self.__real_path.endswith("/"):
+                self.__real_path += "/"
         return self.__real_path
 
     def is_subdirectory_of(self, other: "Directory"):
@@ -55,6 +57,8 @@ class Directory(object):
 
     def try_replace_prefix(self, prefix: "Directory", replacement: str) -> Optional[str]:
         for src, dest in itertools.product((self.path, self.real_path), (prefix.path, prefix.real_path)):
+            assert src.endswith("/"), src
+            assert dest.endswith("/"), dest
             if src.startswith(dest):
                 return src.replace(dest, replacement)
         return None
