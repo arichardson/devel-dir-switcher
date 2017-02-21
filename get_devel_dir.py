@@ -30,6 +30,12 @@ def output_result(r):
     sys.exit()
 
 
+def strip_end(text, suffix):
+    if not text.endswith(suffix):
+        return text
+    return text[:len(text)-len(suffix)]
+
+
 # A class that lazily computes the real path
 class Directory(object):
     def __init__(self, path: str):
@@ -182,8 +188,7 @@ class DevelDirs(object):
             for suffix in mapping.build_suffixes + [""]:
                 for i, name in enumerate(parts):
                     new_parts = list(parts)
-                    if name.endswith("/"):
-                        name = name[:-1]
+                    name = name.rstrip("/")
                     new_parts[i] = name + suffix
                     directory = os.path.join(mapping.build.path, *new_parts)
                     debug("checking", directory)
@@ -227,19 +232,51 @@ class DevelDirs(object):
         # check whether a custom mapping exists:
         for override in self.overrides:
             debug("checking override", override)
-            new_dir = cwd.try_replace_prefix(override.build, override.source.path)
-            if new_dir:
-                output_result(new_dir)
+            self._try_as_source_directory(cwd, override)
 
         for mapping in self.directories:
-            if not mapping.build:
-                continue
-            # TODO: handle suffixes...
-            new_dir = cwd.try_replace_prefix(mapping.build, mapping.source.path)
-            if new_dir:
-                output_result(new_dir)
+            self._try_as_source_directory(cwd, mapping)
         # final fallback: not in source dir before -> change to default source dir
         output_result(self.directories[0].source)
+
+    def _try_as_source_directory(self, path, mapping: DirMapping):
+        # XXXAR: this code is horrible....
+        if not mapping.build:
+            return
+        # check if prefix matches
+        relative_path = path.try_replace_prefix(mapping.build, "")
+        if not relative_path:
+            return
+        assert mapping.source
+
+        # see if there any suffixes that we need to remove
+        default_result = mapping.source.path + relative_path
+        if not mapping.build_suffixes:
+            output_result(default_result)
+        # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
+        candidates = set()  # type: typing.List[typing.Set[str]]
+        assert not relative_path.startswith("/")
+        debug("relative:", relative_path)
+        parts = list(filter(None, relative_path.split("/")))
+        debug("parts:", parts)
+        for i, name in enumerate(parts):
+            debug("trying to remove suffix from", name)
+            name = name.rstrip("/")
+            for suffix in mapping.build_suffixes + [""]:
+                if not name.endswith(suffix):
+                    continue
+                new_parts = list(parts)
+                new_parts[i] = strip_end(name, suffix)
+                directory = os.path.join(mapping.source.path, *new_parts)
+                debug("checking if", directory, "exists")
+                if os.path.isdir(directory):
+                    candidates.add(directory)
+        debug("candidates", candidates)
+        if candidates:
+            result = self.prompt_from_choices("Multiple source directories found", choices=list(candidates))
+            output_result(result)
+        else:
+            die("Could not find source directory for", path)
 
     def update_cache(self, args: argparse.Namespace):
         print('saving to', self.cache_file, file=sys.stderr)
