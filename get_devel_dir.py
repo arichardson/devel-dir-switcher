@@ -71,7 +71,7 @@ class Directory(object):
 
     def replace_prefix(self, prefix: "Directory", replacement: str) -> str:
         result = self.try_replace_prefix(prefix, replacement)
-        if not result:
+        if result is None:
             die("Could not replace prefix", prefix, "with", replacement, "in", self)
         return result
 
@@ -171,7 +171,7 @@ class DevelDirs(object):
 
         for mapping in self.directories:
             relative_path = path.try_replace_prefix(mapping.source, "")
-            if not relative_path:
+            if relative_path is None:
                 continue
             if not mapping.build:
                 die("No build directory defined for source root", mapping.source)
@@ -245,7 +245,7 @@ class DevelDirs(object):
             return
         # check if prefix matches
         relative_path = path.try_replace_prefix(mapping.build, "")
-        if not relative_path:
+        if relative_path is None:
             return
         assert mapping.source
 
