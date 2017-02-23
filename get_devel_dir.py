@@ -6,7 +6,7 @@ import os
 import subprocess
 import argparse
 import itertools
-from typing import Optional, List, Iterable, Sequence
+from typing import Optional, List, Iterable, Sequence, Set
 
 
 def debug(*args, **kwargs):
@@ -229,24 +229,34 @@ class DevelDirs(object):
                 sys.stderr.write("Already in source dir.\n")
                 output_result(cwd)
 
+        candidates = set()
+        found_match = False
         # check whether a custom mapping exists:
-        for override in self.overrides:
-            debug("checking override", override)
-            self._try_as_source_directory(cwd, override)
-
-        for mapping in self.directories:
-            self._try_as_source_directory(cwd, mapping)
+        for mapping in list(self.overrides) + self.directories:
+            result = self._try_as_source_directory(cwd, mapping)
+            debug("candidates for mapping '", mapping, "': ",  result, sep="")
+            if result is not None:
+                found_match = True
+                candidates = candidates.union(result)
+        if found_match:
+            if candidates:
+                result = self.prompt_from_choices("Multiple source directories found", choices=list(candidates))
+                output_result(result)
+            else:
+                die("Could not find source directory for", cwd)
         # final fallback: not in source dir before -> change to default source dir
         output_result(self.directories[0].source)
 
-    def _try_as_source_directory(self, path, mapping: DirMapping):
+    @staticmethod
+    def _try_as_source_directory(path, mapping: DirMapping) -> Optional[Set]:
         # XXXAR: this code is horrible....
         if not mapping.build:
-            return
+            return None
         # check if prefix matches
         relative_path = path.try_replace_prefix(mapping.build, "")
         if relative_path is None:
-            return
+            return set()
+        debug("Found match:", path, "in", mapping)
         assert mapping.source
 
         # see if there any suffixes that we need to remove
@@ -254,7 +264,7 @@ class DevelDirs(object):
         if not mapping.build_suffixes:
             output_result(default_result)
         # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
-        candidates = set()  # type: typing.List[typing.Set[str]]
+        candidates = set()
         assert not relative_path.startswith("/")
         debug("relative:", relative_path)
         parts = list(filter(None, relative_path.split("/")))
@@ -271,12 +281,7 @@ class DevelDirs(object):
                 debug("checking if", directory, "exists")
                 if os.path.isdir(directory):
                     candidates.add(directory)
-        debug("candidates", candidates)
-        if candidates:
-            result = self.prompt_from_choices("Multiple source directories found", choices=list(candidates))
-            output_result(result)
-        else:
-            die("Could not find source directory for", path)
+        return candidates
 
     def update_cache(self, args: argparse.Namespace):
         print('saving to', self.cache_file, file=sys.stderr)
