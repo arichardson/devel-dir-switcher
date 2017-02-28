@@ -126,8 +126,9 @@ class DevelDirs(object):
         assert len(choices) > 0
         if len(choices) == 1:
             return Directory(choices[0])
+        choices = sorted(choices)
         print(*msg, file=sys.stderr)
-        for i, s in enumerate(sorted(choices)):
+        for i, s in enumerate(choices):
             print('  [' + str(i + 1) + ']', s, file=sys.stderr)
         chosen = "<none>"
         try:
