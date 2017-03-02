@@ -239,6 +239,7 @@ class DevelDirs(object):
             if result is not None:
                 found_match = True
                 candidates = candidates.union(result)
+        debug("final candidates:", candidates)
         if found_match:
             if candidates:
                 result = self.prompt_from_choices("Multiple source directories found", choices=list(candidates))
@@ -256,14 +257,14 @@ class DevelDirs(object):
         # check if prefix matches
         relative_path = path.try_replace_prefix(mapping.build, "")
         if relative_path is None:
-            return set()
-        debug("Found match:", path, "in", mapping)
+            return None
+        debug("Found", path, "in", mapping)
         assert mapping.source
 
         # see if there any suffixes that we need to remove
         default_result = mapping.source.path + relative_path
         if not mapping.build_suffixes:
-            output_result(default_result)
+            return {default_result} if os.path.isdir(default_result) else None
         # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
         candidates = set()
         assert not relative_path.startswith("/")
@@ -281,6 +282,7 @@ class DevelDirs(object):
                 directory = os.path.join(mapping.source.path, *new_parts)
                 debug("checking if", directory, "exists")
                 if os.path.isdir(directory):
+                    debug("Adding", directory)
                     candidates.add(directory)
         return candidates
 
