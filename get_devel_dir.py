@@ -154,6 +154,8 @@ class DevelDirs(object):
     def get_build_dir(self, args: argparse.Namespace):
         if args.repository_name:
             path = self.get_dir_for_repo(args.repository_name)
+            if not path:
+                die("Cannot find repository for", args.repository_name)
         else:
             path = Directory(os.path.realpath(os.getcwd()))
 
