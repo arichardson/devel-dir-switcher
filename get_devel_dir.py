@@ -9,8 +9,11 @@ import itertools
 from typing import Optional, List, Iterable, Sequence, Set, Tuple
 
 
+debug_enabled = os.getenv("DEVEL_DIR_DEBUG", None) is not None
+
+
 def debug(*args, **kwargs):
-    if False:
+    if debug_enabled:
         print("\x1b[1;33m", end="", file=sys.stderr)
         print(*args, file=sys.stderr, end="", **kwargs)
         print("\x1b[0m", file=sys.stderr)
@@ -313,6 +316,7 @@ class DevelDirs(object):
 
     def update_cache(self, args: argparse.Namespace):
         print('saving to', self.cache_file, file=sys.stderr)
+        # noinspection PyUnresolvedReferences
         dotgitDirsList = subprocess.check_output(['find', args.path, '-maxdepth', str(args.depth),
                                                   '-name', '.git', '-print0']).decode('utf-8').split('\0')
         # -printf does not work on FreeBSD
@@ -337,8 +341,10 @@ class DevelDirs(object):
     def cache_lookup(self, args: argparse.Namespace):
         # return all possibilities when no arg passed, otherwise filter
         candidates = []
+        # noinspection PyUnresolvedReferences
         if len(args.name_prefix) > 0:
             for k in self.cache_data.keys():
+                # noinspection PyUnresolvedReferences
                 if k.startswith(args.name_prefix):
                     candidates.append(k)
         else:
@@ -365,9 +371,11 @@ class DevelDirs(object):
                         print("   remaining paths are:", values, file=sys.stderr)
                     else:
                         del cache_data_copy[key]
-                        print("Removed ", key, " (", path, ") from cache as it no longer exists", sep='', file=sys.stderr)
+                        print("Removed ", key, " (", path, ") from cache as it no longer exists", sep='',
+                              file=sys.stderr)
         if not changed:
             print("All entries in cache are valid.", file=sys.stderr)
+        # noinspection PyUnresolvedReferences
         if not args.pretend:
             with open(self.cache_file, 'w+') as f:
                 json.dump(cache_data_copy, f, indent=4)
@@ -377,6 +385,7 @@ if __name__ == "__main__":
     # FIXME: handle CWD being deleted
     realCwd = os.path.realpath(os.getcwd() + '/')
     parser = argparse.ArgumentParser()
+    parser.add_argument('--debug', action="store_true", help='Don\'t actually cleanup the cache, only print actions')
     subparsers = parser.add_subparsers(dest='subparser_name', help='sub-command help')
     devel_dirs = None
     parser_source = subparsers.add_parser('source', help='Get path to source dir')
@@ -405,4 +414,6 @@ if __name__ == "__main__":
     # parse the args and call whatever function was selected
     parsed_args = parser.parse_args()
     devel_dirs = DevelDirs()
+    if parsed_args.debug:
+        debug_enabled = True
     parsed_args.func(parsed_args)
