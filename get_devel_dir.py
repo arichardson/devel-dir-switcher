@@ -246,7 +246,9 @@ class DevelDirs(object):
 
         # check if we are already in a source dir:
         for mapping in self.directories:
-            if cwd.is_subdirectory_of(mapping.source) and not cwd.is_subdirectory_of(mapping.build):
+            # build directories can be below the source root (e.g src=~/cheri/llvm, build=~/cheri/build/llvm)
+            in_build_dir = any(cwd.is_subdirectory_of(build_dir) for build_dir in mapping.build_dirs)
+            if cwd.is_subdirectory_of(mapping.source) and not in_build_dir:
                 sys.stderr.write("Already in source dir.\n")
                 output_result(cwd)
 
@@ -266,44 +268,47 @@ class DevelDirs(object):
                 output_result(result)
             else:
                 die("Could not find source directory for", cwd)
+        # FIXME: this is currently broken
         # final fallback: not in source dir before -> change to default source dir
         output_result(self.directories[0].source)
 
     @staticmethod
     def _try_as_source_directory(path, mapping: DirMapping) -> Optional[Set]:
         # XXXAR: this code is horrible....
-        if not mapping.build:
-            return None
-        # check if prefix matches
-        relative_path = path.try_replace_prefix(mapping.build, "")
-        if relative_path is None:
-            return None
-        debug("Found", path, "in", mapping)
-        assert mapping.source
-
-        # see if there any suffixes that we need to remove
-        default_result = mapping.source.path + relative_path
-        if not mapping.build_suffixes:
-            return {default_result} if os.path.isdir(default_result) else None
-        # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
         candidates = set()
-        assert not relative_path.startswith("/")
-        debug("relative:", relative_path)
-        parts = list(filter(None, relative_path.split("/")))
-        debug("parts:", parts)
-        for i, name in enumerate(parts):
-            debug("trying to remove suffix from", name)
-            name = name.rstrip("/")
-            for suffix in mapping.build_suffixes + [""]:
-                if not name.endswith(suffix):
-                    continue
-                new_parts = list(parts)
-                new_parts[i] = strip_end(name, suffix)
-                directory = os.path.join(mapping.source.path, *new_parts)
-                debug("checking if", directory, "exists")
-                if os.path.isdir(directory):
-                    debug("Adding", directory)
-                    candidates.add(directory)
+        for build_dir in mapping.build_dirs:
+            # check if prefix matches
+            relative_path = path.try_replace_prefix(build_dir, "")
+            if relative_path is None:
+                return None
+            debug("Found", path, "in", mapping)
+            assert mapping.source
+
+            # see if there any suffixes that we need to remove
+            default_result = mapping.source.path + relative_path
+            if not mapping.build_suffixes:
+                if os.path.isdir(default_result):
+                    candidates.add(default_result)
+                continue
+
+            # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
+            assert not relative_path.startswith("/")
+            debug("relative:", relative_path)
+            parts = list(filter(None, relative_path.split("/")))
+            debug("parts:", parts)
+            for i, name in enumerate(parts):
+                debug("trying to remove suffix from", name)
+                name = name.rstrip("/")
+                for suffix in mapping.build_suffixes + [""]:
+                    if not name.endswith(suffix):
+                        continue
+                    new_parts = list(parts)
+                    new_parts[i] = strip_end(name, suffix)
+                    directory = os.path.join(mapping.source.path, *new_parts)
+                    debug("checking if", directory, "exists")
+                    if os.path.isdir(directory):
+                        debug("Adding", directory)
+                        candidates.add(directory)
         return candidates
 
     def update_cache(self, args: argparse.Namespace):
