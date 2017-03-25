@@ -6,7 +6,7 @@ import os
 import subprocess
 import argparse
 import itertools
-from typing import Optional, List, Iterable, Sequence, Set
+from typing import Optional, List, Iterable, Sequence, Set, Tuple
 
 
 def debug(*args, **kwargs):
@@ -51,6 +51,7 @@ class Directory(object):
             assert self.__real_path.startswith("/"), self.__real_path
             if not self.__real_path.endswith("/"):
                 self.__real_path += "/"
+        assert isinstance(self.__real_path, str)
         return self.__real_path
 
     def is_subdirectory_of(self, other: "Directory"):
@@ -83,16 +84,21 @@ class DirMapping(object):
     def __init__(self, value: dict):
         self.source = Directory(os.path.expandvars(value["source"]))
         build_json = value["build"]
-        self.build = Directory(os.path.expandvars(build_json)) if build_json else None
+        self.build_dirs = []
+        if build_json:
+            if not isinstance(build_json, list):
+                build_json = [build_json]
+            self.build_dirs = [Directory(os.path.expandvars(s)) for s in build_json]
         self.build_suffixes = value.get("build-suffixes", [])  # type: List[str]
 
     def __repr__(self):
-        return repr(self.source) + " -> " + repr(self.build)
+        return repr(self.source) + " -> " + repr(self.build_dirs)
 
 
 class DevelDirs(object):
     def __init__(self):
         config_file = os.path.join(os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.config")), "devel_dirs.json")
+        self.config_data = dict()
         with open(config_file, 'r') as f:
             self.config_data = json.load(f)  # type: dict
 
@@ -114,6 +120,7 @@ class DevelDirs(object):
             except IOError:
                 self.__cache_data = {}
                 warning('Cache data was invalid, assuming empty!')
+        assert isinstance(self.__cache_data, dict)
         return self.__cache_data
 
     @property
@@ -121,6 +128,7 @@ class DevelDirs(object):
         # we only iterate over this once, make it a lazy property
         return map(DirMapping, self.config_data.get("overrides", []))
 
+    # noinspection PyBroadException
     @staticmethod
     def prompt_from_choices(*msg, choices: Sequence[str]) -> Directory:
         assert len(choices) > 0
@@ -151,77 +159,87 @@ class DevelDirs(object):
             die("Corrupted cache file:", repo_name, "is empty!")
         return self.prompt_from_choices("Multiple source directories found for name", repo_name, choices=dirs)
 
-    def get_build_dir(self, args: argparse.Namespace):
-        if args.repository_name:
-            path = self.get_dir_for_repo(args.repository_name)
+    @staticmethod
+    def _get_build_dir_candidates(relative_path: str, builddir: Directory, suffixes: List[str]) -> Tuple[set, set]:
+        candidates = set()
+        root_candidates = set()
+        assert not relative_path.startswith("/")
+        debug("relative:", relative_path)
+        parts = list(filter(None, relative_path.split("/")))
+        debug("parts:", parts)
+        for suffix in suffixes + [""]:
+            for i, name in enumerate(parts):
+                new_parts = list(parts)
+                name = name.rstrip("/")
+                new_parts[i] = name + suffix
+                directory = os.path.join(builddir.path, *new_parts)
+                debug("checking", directory)
+                if os.path.isdir(directory):
+                    candidates.add(directory)
+                else:
+                    # try if this is a build directory root
+                    possible_root = os.path.join(builddir.path, *new_parts[:i + 1])
+                    if os.path.isdir(possible_root):
+                        root_candidates.add(possible_root)
+        return candidates, root_candidates
+
+    def get_build_dir(self, repository_name: Optional[str]):
+        # noinspection PyUnresolvedReferences
+        if repository_name:
+            path = self.get_dir_for_repo(repository_name)
             if not path:
-                die("Cannot find repository for", args.repository_name)
+                die("Cannot find repository for", repository_name)
         else:
             path = Directory(os.path.realpath(os.getcwd()))
 
         # check if we are already in a build dir:
         for mapping in self.directories:
-            if mapping.build and path.is_subdirectory_of(mapping.build):
+            if any(path.is_subdirectory_of(build_dir) for build_dir in mapping.build_dirs):
                 sys.stderr.write("Already in build dir.\n")
                 output_result(path)
 
         # check whether a custom mapping exists:
         for override in self.overrides:
             debug("checking override", override)
-            new_dir = path.try_replace_prefix(override.source, override.build.path)
-            if new_dir:
-                output_result(new_dir)
+            for build_dir in override.build_dirs:
+                new_dir = path.try_replace_prefix(override.source, build_dir.path)
+                if new_dir:
+                    output_result(new_dir)
 
         for mapping in self.directories:
             relative_path = path.try_replace_prefix(mapping.source, "")
             if relative_path is None:
                 continue
-            if not mapping.build:
+            if not mapping.build_dirs:
                 die("No build directory defined for source root", mapping.source)
-            default_result = mapping.build.path + relative_path
-            if not mapping.build_suffixes:
-                output_result(default_result)
-            # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
             candidates = set()
-            root_candidates = set()
-            assert not relative_path.startswith("/")
-            debug("relative:", relative_path)
-            parts = list(filter(None, relative_path.split("/")))
-            debug("parts:", parts)
-            for suffix in mapping.build_suffixes + [""]:
-                for i, name in enumerate(parts):
-                    new_parts = list(parts)
-                    name = name.rstrip("/")
-                    new_parts[i] = name + suffix
-                    directory = os.path.join(mapping.build.path, *new_parts)
-                    debug("checking", directory)
-                    if os.path.isdir(directory):
-                        candidates.add(directory)
-                    else:
-                        # try if this is a build directory root
-                        possible_root = os.path.join(mapping.build.path, *new_parts[:i + 1])
-                        if os.path.isdir(possible_root):
-                            root_candidates.add(possible_root)
-            debug("candidates", candidates, "root", root_candidates)
+            build_root_candidates = set()
+            for build_dir in mapping.build_dirs:
+                # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
+                full, root_path = self._get_build_dir_candidates(relative_path, build_dir, mapping.build_suffixes)
+                candidates = candidates.union(full)
+                build_root_candidates = build_root_candidates.union(root_path)
+            debug("candidates", candidates, "root", build_root_candidates)
             if candidates:
                 result = self.prompt_from_choices("Multiple build directories found", choices=list(candidates))
                 output_result(result)
-            elif root_candidates:
-                result = self.prompt_from_choices("Multiple build root directories found", choices=list(root_candidates))
+            elif build_root_candidates:
+                result = self.prompt_from_choices("Multiple build root directories found",
+                                                  choices=list(build_root_candidates))
                 output_result(result)
             else:
                 die("Could not find build directory for", path)
 
         # final fallback: not in build dir before -> change to build dir root
-        output_result(self.directories[0].build.path)
+        output_result(self.directories[0].build_dirs[0].path)
 
-    def get_source_dir(self, args: argparse.Namespace):
-        if args.repository_name:
-            cachedSourceDir = self.get_dir_for_repo(args.repository_name)
+    def get_source_dir(self, repository_name: Optional[str]):
+        if repository_name:
+            cachedSourceDir = self.get_dir_for_repo(repository_name)
             if cachedSourceDir:
                 output_result(cachedSourceDir)
             else:
-                die("Cannot find repository for", args.repository_name)
+                die("Cannot find repository for", repository_name)
 
         # find the matching source dir for CWD
         cwd = Directory(os.getcwd())
@@ -358,11 +376,11 @@ if __name__ == "__main__":
     devel_dirs = None
     parser_source = subparsers.add_parser('source', help='Get path to source dir')
     parser_source.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
-    parser_source.set_defaults(func=lambda args: devel_dirs.get_source_dir(args))
+    parser_source.set_defaults(func=lambda args: devel_dirs.get_source_dir(args.repository_name))
 
     parser_build = subparsers.add_parser('build', help='Get path to build dir')
     parser_build.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
-    parser_build.set_defaults(func=lambda args: devel_dirs.get_build_dir(args))
+    parser_build.set_defaults(func=lambda args: devel_dirs.get_build_dir(args.repository_name))
 
     parser_cache_lookup = subparsers.add_parser('cache-lookup', help='Get all repositories that start with given prefix')
     parser_cache_lookup.add_argument('name_prefix', help='The first few characters of the name')
