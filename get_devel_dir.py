@@ -19,12 +19,17 @@ def debug(*args, **kwargs):
         print("\x1b[0m", file=sys.stderr)
 
 
+def info_message(*args, **kwargs):
+    print(*args, **kwargs, file=sys.stderr)
+
+
 def warning(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr)
 
 
 def die(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr)
+    print("Run command again with DEVEL_DIR_DEBUG env var set to see debug output", file=sys.stderr)
     sys.exit(1)
 
 
@@ -138,13 +143,13 @@ class DevelDirs(object):
         if len(choices) == 1:
             return Directory(choices[0])
         choices = sorted(choices)
-        print(*msg, file=sys.stderr)
+        info_message(*msg)
         for i, s in enumerate(choices):
-            print('  [' + str(i + 1) + ']', s, file=sys.stderr)
+            info_message('  [' + str(i + 1) + ']', s)
         chosen = "<none>"
         try:
             # input prompts on stdout, but we read stdout -> print to stderr instead
-            print('Which one did you mean? ', file=sys.stderr, end='')
+            info_message('Which one did you mean? ', end='')
             chosen = input()
             if int(chosen) < 1 or int(chosen) > len(choices):
                 raise RuntimeError("Out of range")
@@ -315,25 +320,25 @@ class DevelDirs(object):
         return candidates
 
     def update_cache(self, args: argparse.Namespace):
-        print('saving to', self.cache_file, file=sys.stderr)
+        info_message('saving to', self.cache_file)
         # noinspection PyUnresolvedReferences
         dotgitDirsList = subprocess.check_output(['find', args.path, '-maxdepth', str(args.depth),
                                                   '-name', '.git', '-print0']).decode('utf-8').split('\0')
         # -printf does not work on FreeBSD
         # we need to go up one dir from .git and use the absolute path
         dirsList = [os.path.realpath(os.path.dirname(p)) for p in dotgitDirsList if p]
-        print(list(dirsList), file=sys.stderr)
+        info_message(list(dirsList))
         for d in dirsList:
             repoName = os.path.basename(d)
             if repoName not in self.cache_data:
-                print('Adding repo', d, 'in', repoName, file=sys.stderr)
+                info_message('Adding repo', d, 'in', repoName)
                 self.cache_data[repoName] = [d]
             elif d not in self.cache_data[repoName]:
-                print('Adding', d, 'as another repo for', repoName, file=sys.stderr)
+                info_message('Adding', d, 'as another repo for', repoName)
                 self.cache_data[repoName].append(d)
             else:
-                print('Repo', d, 'already exists in cache', file=sys.stderr)
-        # print(json.dumps(self.cache_data), file=sys.stderr)
+                info_message('Repo', d, 'already exists in cache')
+        # info_message(json.dumps(self.cache_data))
         with open(self.cache_file, 'w+') as cacheFile:
             json.dump(self.cache_data, cacheFile, indent=4)
             cacheFile.flush()
@@ -356,25 +361,24 @@ class DevelDirs(object):
         # make a copy since we are modifying while iterating
         cache_data_copy = dict(self.cache_data)
         if len(self.cache_data) == 0:
-            print("Cache is empty", file=sys.stderr)
+            info_message("Cache is empty")
             sys.exit(0)
         changed = False
         for key, values in self.cache_data.items():
-            # print("key =", key, "values=", values)
+            # info_message("key =", key, "values=", values)
             for path in values:
                 if not os.path.isdir(path):
                     changed = True
                     if len(values) > 1:
                         values.remove(path)
                         cache_data_copy[key] = values
-                        print("Removed", path, "from cache for", key, file=sys.stderr)
-                        print("   remaining paths are:", values, file=sys.stderr)
+                        info_message("Removed", path, "from cache for", key)
+                        info_message("   remaining paths are:", values)
                     else:
                         del cache_data_copy[key]
-                        print("Removed ", key, " (", path, ") from cache as it no longer exists", sep='',
-                              file=sys.stderr)
+                        info_message("Removed ", key, " (", path, ") from cache as it no longer exists", sep='')
         if not changed:
-            print("All entries in cache are valid.", file=sys.stderr)
+            info_message("All entries in cache are valid.")
         # noinspection PyUnresolvedReferences
         if not args.pretend:
             with open(self.cache_file, 'w+') as f:
