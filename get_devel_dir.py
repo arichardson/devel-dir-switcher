@@ -247,6 +247,14 @@ class DevelDirs(object):
             if cachedSourceDir:
                 output_result(cachedSourceDir)
             else:
+                # Try iterating over the subdirectories of all source roots
+                for mapping in self.directories:
+                    candidate = os.path.join(mapping.source.path, repository_name)
+                    if os.path.isdir(candidate):
+                        warning("Source directory for", repository_name, "guessed as", candidate)
+                        info_message("Consider running `", sys.argv[0], " update-cache ", mapping.source.path, "`",
+                                     sep="")
+                        output_result(candidate)
                 die("Cannot find repository for", repository_name)
 
         # find the matching source dir for CWD
