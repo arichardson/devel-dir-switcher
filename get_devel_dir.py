@@ -191,6 +191,30 @@ class DevelDirs(object):
                         root_candidates.add(possible_root)
         return candidates, root_candidates
 
+    def _try_build_dir_mapping(self, mapping: DirMapping, path: Directory):
+        relative_path = path.try_replace_prefix(mapping.source, "")
+        if relative_path is None:
+            return
+        if not mapping.build_dirs:
+            die("No build directory defined for source root", mapping.source)
+        candidates = set()
+        build_root_candidates = set()
+        for build_dir in mapping.build_dirs:
+            # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
+            full, root_path = self._get_build_dir_candidates(relative_path, build_dir, mapping.build_suffixes)
+            candidates = candidates.union(full)
+            build_root_candidates = build_root_candidates.union(root_path)
+        debug("candidates", candidates, "root", build_root_candidates)
+        if candidates:
+            result = self.prompt_from_choices("Multiple build directories found", choices=list(candidates))
+            output_result(result)
+        elif build_root_candidates:
+            result = self.prompt_from_choices("Multiple build root directories found",
+                                              choices=list(build_root_candidates))
+            output_result(result)
+        else:
+            die("Could not find build directory for", path)
+
     def get_build_dir(self, repository_name: Optional[str]):
         # noinspection PyUnresolvedReferences
         if repository_name:
@@ -209,34 +233,11 @@ class DevelDirs(object):
         # check whether a custom mapping exists:
         for override in self.overrides:
             debug("checking override", override)
-            for build_dir in override.build_dirs:
-                new_dir = path.try_replace_prefix(override.source, build_dir.path)
-                if new_dir:
-                    output_result(new_dir)
+            self._try_build_dir_mapping(override, path)
 
         for mapping in self.directories:
-            relative_path = path.try_replace_prefix(mapping.source, "")
-            if relative_path is None:
-                continue
-            if not mapping.build_dirs:
-                die("No build directory defined for source root", mapping.source)
-            candidates = set()
-            build_root_candidates = set()
-            for build_dir in mapping.build_dirs:
-                # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
-                full, root_path = self._get_build_dir_candidates(relative_path, build_dir, mapping.build_suffixes)
-                candidates = candidates.union(full)
-                build_root_candidates = build_root_candidates.union(root_path)
-            debug("candidates", candidates, "root", build_root_candidates)
-            if candidates:
-                result = self.prompt_from_choices("Multiple build directories found", choices=list(candidates))
-                output_result(result)
-            elif build_root_candidates:
-                result = self.prompt_from_choices("Multiple build root directories found",
-                                                  choices=list(build_root_candidates))
-                output_result(result)
-            else:
-                die("Could not find build directory for", path)
+            self._try_build_dir_mapping(mapping, path)
+
 
         # final fallback: not in build dir before -> change to build dir root
         output_result(self.directories[0].build_dirs[0].path)
