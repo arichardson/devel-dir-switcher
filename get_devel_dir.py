@@ -14,9 +14,9 @@ debug_enabled = os.getenv("DEVEL_DIR_DEBUG", None) is not None
 
 def debug(*args, **kwargs):
     if debug_enabled:
-        print("\x1b[1;33m", end="", file=sys.stderr)
-        print(*args, file=sys.stderr, end="", **kwargs)
-        print("\x1b[0m", file=sys.stderr)
+        args = ("\x1b[1;33m",) + args
+        args += ("\x1b[0m",)
+        print(*args, file=sys.stderr, **kwargs)
 
 
 def info_message(*args, **kwargs):
@@ -174,6 +174,8 @@ class DevelDirs(object):
         assert not relative_path.startswith("/")
         debug("relative:", relative_path)
         parts = list(filter(None, relative_path.split("/")))
+        if not parts:
+            parts = ["/"]
         debug("parts:", parts)
         for suffix in suffixes + [""]:
             for i, name in enumerate(parts):
@@ -181,13 +183,16 @@ class DevelDirs(object):
                 name = name.rstrip("/")
                 new_parts[i] = name + suffix
                 directory = os.path.join(builddir.path, *new_parts)
-                debug("checking", directory)
+                debug("checking", directory, end="")
                 if os.path.isdir(directory):
+                    debug("-> exists")
                     candidates.add(directory)
                 else:
+                    debug("-> not a directory")
                     # try if this is a build directory root
                     possible_root = os.path.join(builddir.path, *new_parts[:i + 1])
                     if os.path.isdir(possible_root):
+                        debug("   but found potential root dir:", possible_root)
                         root_candidates.add(possible_root)
         return candidates, root_candidates
 
