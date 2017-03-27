@@ -14,8 +14,9 @@ debug_enabled = os.getenv("DEVEL_DIR_DEBUG", None) is not None
 
 def debug(*args, **kwargs):
     if debug_enabled:
-        args = ("\x1b[1;33m",) + args
-        args += ("\x1b[0m",)
+        args = list(args)
+        args[0] = "\x1b[1;33m" + str(args[0])
+        args[-1] = str(args[-1]) + "\x1b[0m"
         print(*args, file=sys.stderr, **kwargs)
 
 
@@ -302,15 +303,16 @@ class DevelDirs(object):
             # check if prefix matches
             relative_path = path.try_replace_prefix(build_dir, "")
             if relative_path is None:
-                return None
+                continue
             debug("Found", path, "in", mapping)
             assert mapping.source
 
             # see if there any suffixes that we need to remove
             default_result = mapping.source.path + relative_path
+            if os.path.isdir(default_result):
+                debug("Found source candidate", default_result)
+                candidates.add(default_result)
             if not mapping.build_suffixes:
-                if os.path.isdir(default_result):
-                    candidates.add(default_result)
                 continue
 
             # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
