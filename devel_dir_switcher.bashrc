@@ -44,5 +44,25 @@ _devel_dir_switcher_completion()   #  By convention, the function name
   return 0
 }
 
-complete -F _devel_dir_switcher_completion -o dirnames devel_dir_switcher.py cs cb csir cbir
+complete -F _devel_dir_switcher_completion -o dirnames devel_dir_switcher.py cs cb
 #        ^^ ^^^^^^^^^^^^  Invokes the function devel_dir_switcher_completion
+
+function cs() {
+        local SRCDIR
+        SRCDIR=$(get_devel_dir.py source "$@")
+        if [[ $? -gt 0 ]]; then
+                return 1
+        else
+                cd  "$SRCDIR" || return 1
+        fi
+}
+
+function cb() {
+        local BUILDDIR
+        BUILDDIR=$(get_devel_dir.py build "$@")
+        if [[ $? -gt 0 ]]; then
+                return 1
+        else
+                cd  "$BUILDDIR" || return 1
+        fi
+}
