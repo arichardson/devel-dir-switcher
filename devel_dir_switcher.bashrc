@@ -1,8 +1,7 @@
 #!/bin/bash
-# file: get_devel_dir_completion
-# get_devel_dir.py parameter-completion
+# devel_dir_switcher parameter-completion
 
-_get_devel_dir_completion()   #  By convention, the function name
+_devel_dir_switcher_completion()   #  By convention, the function name
 {                 #+ starts with an underscore.
     local cur prev cmd
     COMPREPLY=()
@@ -21,7 +20,7 @@ _get_devel_dir_completion()   #  By convention, the function name
             COMPREPLY=()
             return 0
         elif [[ "$COMP_CWORD" -gt 2 ]]; then
-            # definitively no more args now even when using get_devel_dir.py
+            # definitively no more args now even when using devel_dir_switcher.py
             COMPREPLY=()
             return 0
         fi
@@ -29,7 +28,7 @@ _get_devel_dir_completion()   #  By convention, the function name
   case "$prev" in
     cs|source|cb|build)
       local possibilities
-      possibilities=$(get_devel_dir.py cache-lookup "$cur")
+      possibilities=$(devel_dir_switcher.py cache-lookup "$cur")
       # local possibilities="source dirs asd f g"
       COMPREPLY=( $( compgen -W "$possibilities" -- "$cur" ) )
     ;;
@@ -45,7 +44,5 @@ _get_devel_dir_completion()   #  By convention, the function name
   return 0
 }
 
-# complete -C "get_devel_dir.py bash-complete" -o dirnames get_devel_dir.py
-# complete -C "echo -e first\\nsecond\n" -o dirnames get_devel_dir.py
-complete -F _get_devel_dir_completion -o dirnames get_devel_dir.py cs cb csir cbir
-#        ^^ ^^^^^^^^^^^^  Invokes the function _get_devel_dir_completion
+complete -F _devel_dir_switcher_completion -o dirnames devel_dir_switcher.py cs cb csir cbir
+#        ^^ ^^^^^^^^^^^^  Invokes the function devel_dir_switcher_completion
