@@ -85,7 +85,7 @@ Invoking `cs` in either of these directories will change back to `/local/scratch
         "-128-build",
         "-debug-build"
       ]
-    },
+    }
   ],
   "overrides": [
     {

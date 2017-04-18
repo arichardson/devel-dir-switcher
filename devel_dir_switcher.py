@@ -338,7 +338,35 @@ class DevelDirs(object):
     def update_cache(self, args: argparse.Namespace):
         info_message('saving to', self.cache_file)
         # noinspection PyUnresolvedReferences
-        dotgitDirsList = subprocess.check_output(['find', args.path, '-maxdepth', str(args.depth),
+        if args.path is None:
+            debug("Updating all dirs")
+            paths = [str(mapping.source.path) for mapping in self.directories]
+        else:
+            # noinspection PyUnresolvedReferences
+            paths = [args.path]
+        # noinspection PyUnresolvedReferences
+        if args.depth is None:
+            level = input("How many levels below the root would you like to search for projects? [Default=2] ")
+            try:
+                depth = int(level) if level else 2
+                if depth < 1:
+                    die("Invalid depth:", level)
+            except ValueError:
+                die("Could not convert", level, "to an integer value")
+                return
+        else:
+            # noinspection PyUnresolvedReferences
+            depth = args.depth
+
+        if not paths:
+            die("Could not find any paths to update. Is your ~/.config/devel_dirs.json valid?")
+        for path in paths:
+            self._update_cache(path, depth)
+
+    def _update_cache(self, path: str, depth: int):
+        info_message("Checking", path, "for projects")
+        # TODO: use os.walk()? Slower but more portable
+        dotgitDirsList = subprocess.check_output(['find', path, '-maxdepth', str(depth),
                                                   '-name', '.git', '-print0']).decode('utf-8').split('\0')
         # -printf does not work on FreeBSD
         # we need to go up one dir from .git and use the absolute path
@@ -421,8 +449,8 @@ if __name__ == "__main__":
     parser_cache_lookup.set_defaults(func=lambda args: devel_dirs.cache_lookup(args))
 
     parser_update_cache = subparsers.add_parser('update-cache', help='Update the source dirs cache')
-    parser_update_cache.add_argument('path', nargs='?', default='.', help='The path where repositories are searched for')
-    parser_update_cache.add_argument('depth', nargs='?', default='2', type=int,
+    parser_update_cache.add_argument('path', nargs='?', default=None, help='The path where repositories are searched for')
+    parser_update_cache.add_argument('depth', nargs='?', default=None, type=int,
                                      help='The search depth for finding repositories')
     parser_update_cache.set_defaults(func=lambda args: devel_dirs.update_cache(args))
 
