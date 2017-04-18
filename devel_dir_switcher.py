@@ -106,7 +106,8 @@ class DirMapping(object):
 
 class DevelDirs(object):
     def __init__(self):
-        config_file = os.path.join(os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.config")), "devel_dirs.json")
+        config_file = os.path.join(os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "devel_dirs.json")
+
         self.config_data = dict()
         with open(config_file, 'r') as f:
             self.config_data = json.load(f)  # type: dict
