@@ -257,7 +257,7 @@ class DevelDirs(object):
         if repository_name:
             cachedSourceDir = self.get_dir_for_repo(repository_name)
             if cachedSourceDir:
-                output_result(cachedSourceDir)
+                self._check_and_output_source_dir_result(cachedSourceDir)
             else:
                 # Try iterating over the subdirectories of all source roots
                 for mapping in self.directories:
@@ -296,12 +296,21 @@ class DevelDirs(object):
         if found_match:
             if candidates:
                 result = self.prompt_from_choices("Multiple source directories found", choices=list(candidates))
-                output_result(result)
+                self._check_and_output_source_dir_result(result)
             else:
                 die("Could not find source directory for", cwd)
         # FIXME: this is currently broken
         # final fallback: not in source dir before -> change to default source dir
         output_result(self.directories[0].source)
+
+    def _check_and_output_source_dir_result(self, result: Directory):
+        if not os.path.isdir(result.path):
+            warning("Chosen project no longer exists: ", result)
+            info_message("Consider running `", sys.argv[0], " cleanup-cache ", sep="")
+            info_message("Do you want to do this now? [y/N] ", end="")
+            if input().lower()[:1] == "y":
+                self._cleanup_cache()
+        output_result(result)
 
     @staticmethod
     def _try_as_source_directory(path, mapping: DirMapping) -> Optional[Set]:
@@ -410,6 +419,10 @@ class DevelDirs(object):
         output_result(" ".join(candidates))
 
     def cleanup_cache(self, args: argparse.Namespace):
+        # noinspection PyUnresolvedReferences
+        self._cleanup_cache(pretend=args.pretend)
+
+    def _cleanup_cache(self, pretend: bool=False):
         # make a copy since we are modifying while iterating
         cache_data_copy = dict(self.cache_data)
         if len(self.cache_data) == 0:
@@ -431,8 +444,7 @@ class DevelDirs(object):
                         info_message("Removed ", key, " (", path, ") from cache as it no longer exists", sep='')
         if not changed:
             info_message("All entries in cache are valid.")
-        # noinspection PyUnresolvedReferences
-        if not args.pretend:
+        if not pretend:
             with open(self.cache_file, 'w+') as f:
                 json.dump(cache_data_copy, f, indent=4)
                 f.flush()
