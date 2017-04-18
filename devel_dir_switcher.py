@@ -45,6 +45,13 @@ def strip_end(text, suffix):
     return text[:len(text)-len(suffix)]
 
 
+def safe_getcwd():
+    # os.getcwd fails when used in a directory that has been deleted:
+    try:
+        return os.getcwd()
+    except FileNotFoundError:
+        return "/"
+
 # A class that lazily computes the real path
 class Directory(object):
     def __init__(self, path: str):
@@ -233,7 +240,7 @@ class DevelDirs(object):
             if not path:
                 die("Cannot find repository for", repository_name)
         else:
-            path = Directory(os.path.realpath(os.getcwd()))
+            path = Directory(os.path.realpath(safe_getcwd()))
 
         # check if we are already in a build dir:
         for mapping in self.directories:
@@ -273,7 +280,7 @@ class DevelDirs(object):
                 die("Cannot find repository for", repository_name)
 
         # find the matching source dir for CWD
-        cwd = Directory(os.getcwd())
+        cwd = Directory(safe_getcwd())
 
         # check if we are already in a source dir:
         for mapping in self.directories:
@@ -450,8 +457,6 @@ class DevelDirs(object):
                 f.flush()
 
 if __name__ == "__main__":
-    # FIXME: handle CWD being deleted
-    realCwd = os.path.realpath(os.getcwd() + '/')
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action="store_true", help='Don\'t actually cleanup the cache, only print actions')
     subparsers = parser.add_subparsers(dest='subparser_name', help='sub-command help')
