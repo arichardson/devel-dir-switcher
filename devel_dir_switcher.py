@@ -107,10 +107,14 @@ class DirMapping(object):
 class DevelDirs(object):
     def __init__(self):
         config_file = os.path.join(os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "devel_dirs.json")
-
-        self.config_data = dict()
-        with open(config_file, 'r') as f:
-            self.config_data = json.load(f)  # type: dict
+        try:
+            self.config_data = dict()
+            with open(config_file, 'r') as f:
+                self.config_data = json.load(f)  # type: dict
+        except FileNotFoundError:
+            die("Could not find config file", config_file)
+        except ValueError as e:
+            die("Could not parse JSON data from " + config_file + ":", e)
 
         self.directories = list(map(DirMapping, self.config_data["directories"]))  # type: List[DirMapping]
         debug("directories:", self.directories)
