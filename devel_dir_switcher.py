@@ -261,6 +261,9 @@ class DevelDirs(object):
                         warning("Source directory for", repository_name, "guessed as", candidate)
                         info_message("Consider running `", sys.argv[0], " update-cache ", mapping.source.path, "`",
                                      sep="")
+                        info_message("Do you want to do this now? [y/N] ", end="")
+                        if input().lower()[:1] == "y":
+                            self._update_cache(mapping.source.path, 2)
                         output_result(candidate)
                 die("Cannot find repository for", repository_name)
 
