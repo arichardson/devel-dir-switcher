@@ -407,6 +407,7 @@ class DevelDirs(object):
             else:
                 info_message('Repo', d, 'already exists in cache')
         # info_message(json.dumps(self.cache_data))
+        os.makedirs(os.path.pardir(self.cache_file), exist_ok=True)
         with open(self.cache_file, 'w+') as cacheFile:
             json.dump(self.cache_data, cacheFile, indent=4)
             cacheFile.flush()
