@@ -45,6 +45,7 @@ def strip_end(text, suffix):
     return text[:len(text)-len(suffix)]
 
 
+
 def safe_getcwd():
     # os.getcwd fails when used in a directory that has been deleted:
     try:
@@ -113,7 +114,9 @@ class DirMapping(object):
 
 class DevelDirs(object):
     def __init__(self):
-        config_file = os.path.join(os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config")), "devel_dirs.json")
+        # config_dir = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        config_dir = os.path.expanduser("~/.config")
+        config_file = os.path.join(config_dir, "devel_dirs.json")
         try:
             self.config_data = dict()
             with open(config_file, 'r') as f:
@@ -126,7 +129,8 @@ class DevelDirs(object):
         self.directories = list(map(DirMapping, self.config_data["directories"]))  # type: List[DirMapping]
         debug("directories:", self.directories)
 
-        cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+        # cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+        cacheDir = os.path.expanduser("~/.cache")
         self.cache_file = os.path.join(cacheDir, "devel-dirs.cache")
         self.__cache_data = None
 
