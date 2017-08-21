@@ -142,7 +142,7 @@ class DevelDirs(object):
                 with open(self.cache_file, 'r') as f:
                     self.__cache_data = json.load(f)
                     # debug("Cache data:", self.__cache_data)
-            except IOError:
+            except (IOError, json.decoder.JSONDecodeError):
                 self.__cache_data = {}
                 warning('Cache data was invalid, assuming empty!')
         assert isinstance(self.__cache_data, dict)
