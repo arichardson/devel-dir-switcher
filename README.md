@@ -16,7 +16,7 @@ If you want to use devel-dir-switcher with non-git project just can create a `.g
 To install add the directory where you cloned devel-dir-switcher to your `$PATH` and source `devel_dir_switcher.bashrc` from your bashrc:
 
 ```bash
-$ git clone https://github.com/RichardsonAlex/devel-dir-switcher.git
+$ git clone https://github.com/arichardson/devel-dir-switcher.git
 $ echo "export PATH=$PWD/devel-dir-switcher:\$PATH" >> ~/.bashrc
 $ echo "source $PWD/devel-dir-switcher/devel-dir-switcher.bashrc" >> ~/.bashrc
 ```
