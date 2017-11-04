@@ -49,7 +49,7 @@ complete -F _devel_dir_switcher_completion -o dirnames devel_dir_switcher.py cs 
 
 function cs() {
         local SRCDIR
-        SRCDIR=$(get_devel_dir.py source "$@")
+        SRCDIR=$(devel_dir_switcher.py source "$@")
         if [[ $? -gt 0 ]]; then
                 return 1
         else
@@ -59,7 +59,7 @@ function cs() {
 
 function cb() {
         local BUILDDIR
-        BUILDDIR=$(get_devel_dir.py build "$@")
+        BUILDDIR=$(devel_dir_switcher.py build "$@")
         if [[ $? -gt 0 ]]; then
                 return 1
         else

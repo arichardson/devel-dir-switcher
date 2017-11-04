@@ -45,6 +45,14 @@ def strip_end(text, suffix):
     return text[:len(text)-len(suffix)]
 
 
+
+def safe_getcwd():
+    # os.getcwd fails when used in a directory that has been deleted:
+    try:
+        return os.getcwd()
+    except FileNotFoundError:
+        return "/"
+
 # A class that lazily computes the real path
 class Directory(object):
     def __init__(self, path: str):
@@ -106,15 +114,23 @@ class DirMapping(object):
 
 class DevelDirs(object):
     def __init__(self):
-        config_file = os.path.join(os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.config")), "devel_dirs.json")
-        self.config_data = dict()
-        with open(config_file, 'r') as f:
-            self.config_data = json.load(f)  # type: dict
+        # config_dir = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
+        config_dir = os.path.expanduser("~/.config")
+        config_file = os.path.join(config_dir, "devel_dirs.json")
+        try:
+            self.config_data = dict()
+            with open(config_file, 'r') as f:
+                self.config_data = json.load(f)  # type: dict
+        except FileNotFoundError:
+            die("Could not find config file", config_file)
+        except ValueError as e:
+            die("Could not parse JSON data from " + config_file + ":", e)
 
         self.directories = list(map(DirMapping, self.config_data["directories"]))  # type: List[DirMapping]
         debug("directories:", self.directories)
 
-        cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+        # cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+        cacheDir = os.path.expanduser("~/.cache")
         self.cache_file = os.path.join(cacheDir, "devel-dirs.cache")
         self.__cache_data = None
 
@@ -126,7 +142,7 @@ class DevelDirs(object):
                 with open(self.cache_file, 'r') as f:
                     self.__cache_data = json.load(f)
                     # debug("Cache data:", self.__cache_data)
-            except IOError:
+            except (IOError, json.decoder.JSONDecodeError):
                 self.__cache_data = {}
                 warning('Cache data was invalid, assuming empty!')
         assert isinstance(self.__cache_data, dict)
@@ -228,7 +244,7 @@ class DevelDirs(object):
             if not path:
                 die("Cannot find repository for", repository_name)
         else:
-            path = Directory(os.path.realpath(os.getcwd()))
+            path = Directory(os.path.realpath(safe_getcwd()))
 
         # check if we are already in a build dir:
         for mapping in self.directories:
@@ -252,7 +268,7 @@ class DevelDirs(object):
         if repository_name:
             cachedSourceDir = self.get_dir_for_repo(repository_name)
             if cachedSourceDir:
-                output_result(cachedSourceDir)
+                self._check_and_output_source_dir_result(cachedSourceDir)
             else:
                 # Try iterating over the subdirectories of all source roots
                 for mapping in self.directories:
@@ -261,11 +277,14 @@ class DevelDirs(object):
                         warning("Source directory for", repository_name, "guessed as", candidate)
                         info_message("Consider running `", sys.argv[0], " update-cache ", mapping.source.path, "`",
                                      sep="")
+                        info_message("Do you want to do this now? [y/N] ", end="")
+                        if input().lower()[:1] == "y":
+                            self._update_cache(mapping.source.path, 2)
                         output_result(candidate)
                 die("Cannot find repository for", repository_name)
 
         # find the matching source dir for CWD
-        cwd = Directory(os.getcwd())
+        cwd = Directory(safe_getcwd())
 
         # check if we are already in a source dir:
         for mapping in self.directories:
@@ -288,12 +307,21 @@ class DevelDirs(object):
         if found_match:
             if candidates:
                 result = self.prompt_from_choices("Multiple source directories found", choices=list(candidates))
-                output_result(result)
+                self._check_and_output_source_dir_result(result)
             else:
                 die("Could not find source directory for", cwd)
         # FIXME: this is currently broken
         # final fallback: not in source dir before -> change to default source dir
         output_result(self.directories[0].source)
+
+    def _check_and_output_source_dir_result(self, result: Directory):
+        if not os.path.isdir(result.path):
+            warning("Chosen project no longer exists: ", result)
+            info_message("Consider running `", sys.argv[0], " cleanup-cache ", sep="")
+            info_message("Do you want to do this now? [y/N] ", end="")
+            if input().lower()[:1] == "y":
+                self._cleanup_cache()
+        output_result(result)
 
     @staticmethod
     def _try_as_source_directory(path, mapping: DirMapping) -> Optional[Set]:
@@ -338,7 +366,35 @@ class DevelDirs(object):
     def update_cache(self, args: argparse.Namespace):
         info_message('saving to', self.cache_file)
         # noinspection PyUnresolvedReferences
-        dotgitDirsList = subprocess.check_output(['find', args.path, '-maxdepth', str(args.depth),
+        if args.path is None:
+            debug("Updating all dirs")
+            paths = [str(mapping.source.path) for mapping in self.directories]
+        else:
+            # noinspection PyUnresolvedReferences
+            paths = [args.path]
+        # noinspection PyUnresolvedReferences
+        if args.depth is None:
+            level = input("How many levels below the root would you like to search for projects? [Default=2] ")
+            try:
+                depth = int(level) if level else 2
+                if depth < 1:
+                    die("Invalid depth:", level)
+            except ValueError:
+                die("Could not convert", level, "to an integer value")
+                return
+        else:
+            # noinspection PyUnresolvedReferences
+            depth = args.depth
+
+        if not paths:
+            die("Could not find any paths to update. Is your ~/.config/devel_dirs.json valid?")
+        for path in paths:
+            self._update_cache(path, depth)
+
+    def _update_cache(self, path: str, depth: int):
+        info_message("Checking", path, "for projects")
+        # TODO: use os.walk()? Slower but more portable
+        dotgitDirsList = subprocess.check_output(['find', path, '-maxdepth', str(depth),
                                                   '-name', '.git', '-print0']).decode('utf-8').split('\0')
         # -printf does not work on FreeBSD
         # we need to go up one dir from .git and use the absolute path
@@ -355,6 +411,7 @@ class DevelDirs(object):
             else:
                 info_message('Repo', d, 'already exists in cache')
         # info_message(json.dumps(self.cache_data))
+        os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
         with open(self.cache_file, 'w+') as cacheFile:
             json.dump(self.cache_data, cacheFile, indent=4)
             cacheFile.flush()
@@ -374,6 +431,10 @@ class DevelDirs(object):
         output_result(" ".join(candidates))
 
     def cleanup_cache(self, args: argparse.Namespace):
+        # noinspection PyUnresolvedReferences
+        self._cleanup_cache(pretend=args.pretend)
+
+    def _cleanup_cache(self, pretend: bool=False):
         # make a copy since we are modifying while iterating
         cache_data_copy = dict(self.cache_data)
         if len(self.cache_data) == 0:
@@ -395,15 +456,12 @@ class DevelDirs(object):
                         info_message("Removed ", key, " (", path, ") from cache as it no longer exists", sep='')
         if not changed:
             info_message("All entries in cache are valid.")
-        # noinspection PyUnresolvedReferences
-        if not args.pretend:
+        if not pretend:
             with open(self.cache_file, 'w+') as f:
                 json.dump(cache_data_copy, f, indent=4)
                 f.flush()
 
 if __name__ == "__main__":
-    # FIXME: handle CWD being deleted
-    realCwd = os.path.realpath(os.getcwd() + '/')
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action="store_true", help='Don\'t actually cleanup the cache, only print actions')
     subparsers = parser.add_subparsers(dest='subparser_name', help='sub-command help')
@@ -421,8 +479,8 @@ if __name__ == "__main__":
     parser_cache_lookup.set_defaults(func=lambda args: devel_dirs.cache_lookup(args))
 
     parser_update_cache = subparsers.add_parser('update-cache', help='Update the source dirs cache')
-    parser_update_cache.add_argument('path', nargs='?', default='.', help='The path where repositories are searched for')
-    parser_update_cache.add_argument('depth', nargs='?', default='2', type=int,
+    parser_update_cache.add_argument('path', nargs='?', default=None, help='The path where repositories are searched for')
+    parser_update_cache.add_argument('depth', nargs='?', default=None, type=int,
                                      help='The search depth for finding repositories')
     parser_update_cache.set_defaults(func=lambda args: devel_dirs.update_cache(args))
 
