@@ -396,7 +396,7 @@ class DevelDirs(object):
         # TODO: use os.walk()? Slower but more portable
         # Also handle .gitrepo files for git-subrepo (libunwind/libcxx, etc)
         dotgitDirsList = subprocess.check_output(['find', path, '-maxdepth', str(depth),
-                                                  '-name', '.git', '-o', '-name', '.gitrepo', '-print0']).decode('utf-8').split('\0')
+                                                  '(', '-name', '.git', '-o', '-name', '.gitrepo', ')', '-print0']).decode('utf-8').split('\0')
         # -printf does not work on FreeBSD
         # we need to go up one dir from .git and use the absolute path
         dirsList = [os.path.realpath(os.path.dirname(p)) for p in dotgitDirsList if p]
