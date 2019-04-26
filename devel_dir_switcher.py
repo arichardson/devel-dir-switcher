@@ -127,6 +127,7 @@ class DevelDirs(object):
             die("Could not parse JSON data from " + config_file + ":", e)
 
         self.directories = list(map(DirMapping, self.config_data["directories"]))  # type: List[DirMapping]
+        self.ignored_dirs = self.config_data.get("ignored_directories", [])  # type: List[str]
         debug("directories:", self.directories)
 
         # cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
@@ -442,19 +443,30 @@ class DevelDirs(object):
             info_message("Cache is empty")
             sys.exit(0)
         changed = False
+        debug("Cleaning up cache. Ignored dirs are", self.ignored_dirs)
         for key, values in self.cache_data.items():
             # info_message("key =", key, "values=", values)
             for path in values:
-                if not os.path.isdir(path):
+                is_ignored = False
+                debug("Checking", path)
+                for ignored in self.ignored_dirs:
+                    assert ignored.endswith("/")
+                    if os.path.realpath(path).startswith(ignored):
+                        debug(path, "is below ignored dir", ignored)
+                        is_ignored = True
+                        break
+                if not os.path.isdir(path) or is_ignored:
+                    reason = "is below ignored directory" if is_ignored else "no longer exists"
                     changed = True
                     if len(values) > 1:
                         values.remove(path)
                         cache_data_copy[key] = values
-                        info_message("Removed", path, "from cache for", key)
+                        info_message("Removed", path, "from cache for", key, "as it", reason)
                         info_message("   remaining paths are:", values)
                     else:
                         del cache_data_copy[key]
-                        info_message("Removed ", key, " (", path, ") from cache as it no longer exists", sep='')
+                        info_message("Removed ", key, " (", path, ") from cache as it", reason, sep='')
+
         if not changed:
             info_message("All entries in cache are valid.")
         if not pretend:
