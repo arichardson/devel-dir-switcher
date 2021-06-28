@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 
-import json
-import sys
-import os
-import subprocess
 import argparse
 import itertools
-from typing import Optional, List, Iterable, Sequence, Set, Tuple
-
+import json
+import os
+import subprocess
+import sys
+from typing import Iterable, List, Optional, Sequence, Set, Tuple
 
 debug_enabled = os.getenv("DEVEL_DIR_DEBUG", None) is not None
 
@@ -45,13 +44,13 @@ def strip_end(text, suffix):
     return text[:len(text)-len(suffix)]
 
 
-
 def safe_getcwd():
     # os.getcwd fails when used in a directory that has been deleted:
     try:
         return os.getcwd()
     except FileNotFoundError:
         return "/"
+
 
 # A class that lazily computes the real path
 class Directory(object):
@@ -131,9 +130,9 @@ class DevelDirs(object):
         self.ignored_dirs = self.config_data.get("ignored_directories", [])  # type: List[str]
         debug("directories:", self.directories)
 
-        # cacheDir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
-        cacheDir = os.path.expanduser("~/.cache")
-        self.cache_file = os.path.join(cacheDir, "devel-dirs.cache")
+        # cache_dir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
+        cache_dir = os.path.expanduser("~/.cache")
+        self.cache_file = os.path.join(cache_dir, "devel-dirs.cache")
         self.__cache_data = None
 
     @property
@@ -248,7 +247,6 @@ class DevelDirs(object):
         else:
             path = Directory(os.path.realpath(safe_getcwd()))
 
-
         debug("Finding build dir for", path)
         # check if we are already in a build dir:
         for mapping in self.directories:
@@ -276,9 +274,9 @@ class DevelDirs(object):
 
     def get_source_dir(self, repository_name: Optional[str]):
         if repository_name:
-            cachedSourceDir = self.get_dir_for_repo(repository_name)
-            if cachedSourceDir:
-                self._check_and_output_source_dir_result(cachedSourceDir)
+            cached_source_dir = self.get_dir_for_repo(repository_name)
+            if cached_source_dir:
+                self._check_and_output_source_dir_result(cached_source_dir)
             else:
                 # Try iterating over the subdirectories of all source roots
                 for mapping in self.directories:
@@ -405,23 +403,24 @@ class DevelDirs(object):
         info_message("Checking", path, "for projects")
         # TODO: use os.walk()? Slower but more portable
         # Also handle .gitrepo files for git-subrepo (libunwind/libcxx, etc)
-        dotgitDirsList = subprocess.check_output(['find', path, '-maxdepth', str(depth),
-                                                  '(', '-name', '.git', '-o', '-name', '.gitrepo', ')', '-print0']).decode('utf-8').split('\0')
+        dotgit_dirs_list = subprocess.check_output([
+            'find', path, '-maxdepth', str(depth),
+            '(', '-name', '.git', '-o', '-name', '.gitrepo', ')', '-print0']).decode('utf-8').split('\0')
         # -printf does not work on FreeBSD
         # we need to go up one dir from .git and use the absolute path
-        dirsList = [os.path.realpath(os.path.dirname(p)) for p in dotgitDirsList if p]
-        info_message(list(dirsList))
-        for d in dirsList:
+        dirs_list = [os.path.realpath(os.path.dirname(p)) for p in dotgit_dirs_list if p]
+        info_message(list(dirs_list))
+        for d in dirs_list:
             if any(d.startswith(ignored_root) for ignored_root in self.ignored_dirs):
                 info_message('Not adding repo', d, 'since it is below an ignored dir')
                 continue
-            repoName = os.path.basename(d)
-            if repoName not in self.cache_data:
-                info_message('Adding repo', d, 'in', repoName)
-                self.cache_data[repoName] = [d]
-            elif d not in self.cache_data[repoName]:
-                info_message('Adding', d, 'as another repo for', repoName)
-                self.cache_data[repoName].append(d)
+            repo_name = os.path.basename(d)
+            if repo_name not in self.cache_data:
+                info_message('Adding repo', d, 'in', repo_name)
+                self.cache_data[repo_name] = [d]
+            elif d not in self.cache_data[repo_name]:
+                info_message('Adding', d, 'as another repo for', repo_name)
+                self.cache_data[repo_name].append(d)
             else:
                 info_message('Repo', d, 'already exists in cache')
         # info_message(json.dumps(self.cache_data))
@@ -451,7 +450,7 @@ class DevelDirs(object):
         # noinspection PyUnresolvedReferences
         self._cleanup_cache(pretend=args.pretend)
 
-    def _cleanup_cache(self, pretend: bool=False):
+    def _cleanup_cache(self, pretend: bool = False):
         # make a copy since we are modifying while iterating
         cache_data_copy = dict(self.cache_data)
         if len(self.cache_data) == 0:
@@ -489,6 +488,7 @@ class DevelDirs(object):
                 json.dump(cache_data_copy, f, indent=4)
                 f.flush()
 
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action="store_true", help='Don\'t actually cleanup the cache, only print actions')
@@ -502,16 +502,18 @@ if __name__ == "__main__":
     parser_build.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
     parser_build.set_defaults(func=lambda args: devel_dirs.get_build_dir(args.repository_name))
 
-    parser_cache_lookup = subparsers.add_parser('cache-lookup', help='Get all repositories that start with given prefix')
+    parser_cache_lookup = subparsers.add_parser('cache-lookup',
+                                                help='Get all repositories that start with given prefix')
     parser_cache_lookup.add_argument('name_prefix', help='The first few characters of the name')
     parser_cache_lookup.set_defaults(func=lambda args: devel_dirs.cache_lookup(args))
 
     parser_update_cache = subparsers.add_parser('update-cache', help='Update the source dirs cache')
-    parser_update_cache.add_argument('path', nargs='?', default=None, help='The path where repositories are searched for')
+    parser_update_cache.add_argument('path', nargs='?', default=None,
+                                     help='The path where repositories are searched for')
     parser_update_cache.add_argument('depth', nargs='?', default=None, type=int,
                                      help='The search depth for finding repositories')
     parser_update_cache.add_argument('--pretend', '-p', action="store_true",
-                                      help='Don\'t actually cleanup the cache, only print actions')
+                                     help='Don\'t actually cleanup the cache, only print actions')
     parser_update_cache.set_defaults(func=lambda args: devel_dirs.update_cache(args))
 
     parser_cleanup_cache = subparsers.add_parser('cleanup-cache', help='Update the source dirs cache')
