@@ -97,7 +97,7 @@ class Directory(object):
 
 
 class DirMapping(object):
-    def __init__(self, value: dict):
+    def __init__(self, value: dict, default_build_suffixes: "list[str]"):
         self.source = Directory(os.path.expandvars(value["source"]))
         build_json = value["build"]
         self.build_dirs = []
@@ -105,7 +105,7 @@ class DirMapping(object):
             if not isinstance(build_json, list):
                 build_json = [build_json]
             self.build_dirs = [Directory(os.path.expandvars(s)) for s in build_json]
-        self.build_suffixes = value.get("build-suffixes", [])  # type: List[str]
+        self.build_suffixes = value.get("build-suffixes", default_build_suffixes)  # type: List[str]
         self.basename = value.get("basename", None)  # type: List[str]
 
     def __repr__(self):
@@ -126,7 +126,9 @@ class DevelDirs(object):
         except ValueError as e:
             die("Could not parse JSON data from " + config_file + ":", e)
 
-        self.directories = list(map(DirMapping, self.config_data["directories"]))  # type: List[DirMapping]
+        self.default_suffixes = self.config_data.get("build-suffixes", [])  # type: List[str]
+        dirs_map = map(lambda x: DirMapping(x, self.default_suffixes), self.config_data["directories"])
+        self.directories = list(dirs_map)  # type: List[DirMapping]
         self.ignored_dirs = self.config_data.get("ignored_directories", [])  # type: List[str]
         debug("directories:", self.directories)
 
@@ -152,7 +154,7 @@ class DevelDirs(object):
     @property
     def overrides(self) -> Iterable[DirMapping]:
         # we only iterate over this once, make it a lazy property
-        return map(DirMapping, self.config_data.get("overrides", []))
+        return map(lambda x: DirMapping(x, self.default_suffixes), self.config_data.get("overrides", []))
 
     # noinspection PyBroadException
     @staticmethod
@@ -201,7 +203,7 @@ class DevelDirs(object):
                 name = name.rstrip("/")
                 new_parts[i] = name + suffix
                 directory = os.path.join(builddir.path, *new_parts)
-                debug("checking", directory, end="")
+                debug("checking", directory, end=" ")
                 if os.path.isdir(directory):
                     debug("-> exists")
                     candidates.add(directory)
