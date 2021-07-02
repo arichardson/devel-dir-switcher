@@ -281,8 +281,9 @@ class DevelDirs(object):
                 self._check_and_output_source_dir_result(cached_source_dir)
             else:
                 # Try iterating over the subdirectories of all source roots
-                for mapping in self.directories:
+                for mapping in itertools.chain(self.directories, self.overrides):
                     candidate = os.path.join(mapping.source.path, repository_name)
+                    debug("trying", candidate)
                     if os.path.isdir(candidate):
                         warning("Source directory for", repository_name, "guessed as", candidate)
                         info_message("Consider running `", sys.argv[0], " update-cache ", mapping.source.path, "`",
