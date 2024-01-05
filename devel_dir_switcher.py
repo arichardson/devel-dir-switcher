@@ -134,7 +134,31 @@ class DevelDirs:
             with open(config_file) as f:
                 self.config_data: "dict[str, Any]" = json.load(f)
         except FileNotFoundError:
-            die("Could not find config file", config_file)
+            # language=json
+            example_config_file = """
+{
+    "build-suffixes": ["-build"],
+    "directories": [
+        {
+            "source": "$HOME/devel/sources",
+            "build": "$HOME/devel/build"
+        }
+    ],
+    "overrides": [
+        {
+            "source": "$HOME/devel/sources/superrepo/",
+            "build": "$HOME/devel/build"
+        }
+    ]
+}
+"""
+            die(
+                "Could not find config file ",
+                config_file,
+                ". Please create it. Example contents:\n",
+                example_config_file,
+                sep="",
+            )
         except ValueError as e:
             die("Could not parse JSON data from " + config_file + ":", e)
 
