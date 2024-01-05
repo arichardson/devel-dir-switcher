@@ -496,7 +496,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--debug', action="store_true", help='Don\'t actually cleanup the cache, only print actions')
     subparsers = parser.add_subparsers(dest='subparser_name', help='sub-command help', required=True)
-    devel_dirs = None
     parser_source = subparsers.add_parser('source', help='Get path to source dir')
     parser_source.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
     parser_source.set_defaults(func=lambda args: devel_dirs.get_source_dir(args.repository_name))
