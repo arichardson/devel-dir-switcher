@@ -29,7 +29,10 @@ def warning(*args, **kwargs):
 
 def die(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr)
-    print("Run command again with DEVEL_DIR_DEBUG env var set to see debug output", file=sys.stderr)
+    print(
+        "Run command again with DEVEL_DIR_DEBUG env var set to see debug output",
+        file=sys.stderr,
+    )
     sys.exit(1)
 
 
@@ -41,7 +44,7 @@ def output_result(r):
 def strip_end(text, suffix):
     if not text.endswith(suffix):
         return text
-    return text[:len(text)-len(suffix)]
+    return text[: len(text) - len(suffix)]
 
 
 def safe_getcwd():
@@ -74,12 +77,18 @@ class Directory(object):
         assert isinstance(other, Directory)
         if self.path.startswith(other.path) or self.real_path.startswith(other.path):
             return True
-        if self.path.startswith(other.real_path) or self.real_path.startswith(other.real_path):
+        if self.path.startswith(other.real_path) or self.real_path.startswith(
+            other.real_path
+        ):
             return True
         return False
 
-    def try_replace_prefix(self, prefix: "Directory", replacement: str) -> Optional[str]:
-        for src, dest in itertools.product((self.path, self.real_path), (prefix.path, prefix.real_path)):
+    def try_replace_prefix(
+        self, prefix: "Directory", replacement: str
+    ) -> Optional[str]:
+        for src, dest in itertools.product(
+            (self.path, self.real_path), (prefix.path, prefix.real_path)
+        ):
             assert src.endswith("/"), src
             assert dest.endswith("/"), dest
             if src.startswith(dest):
@@ -105,7 +114,9 @@ class DirMapping(object):
             if not isinstance(build_json, list):
                 build_json = [build_json]
             self.build_dirs = [Directory(os.path.expandvars(s)) for s in build_json]
-        self.build_suffixes = value.get("build-suffixes", default_build_suffixes)  # type: List[str]
+        self.build_suffixes = value.get(
+            "build-suffixes", default_build_suffixes
+        )  # type: List[str]
         self.basename: "Optional[list[str]]" = value.get("basename", None)
 
     def __repr__(self):
@@ -119,17 +130,24 @@ class DevelDirs(object):
         config_file = os.path.join(config_dir, "devel_dirs.json")
         try:
             self.config_data = dict()
-            with open(config_file, 'r') as f:
+            with open(config_file, "r") as f:
                 self.config_data = json.load(f)  # type: dict
         except FileNotFoundError:
             die("Could not find config file", config_file)
         except ValueError as e:
             die("Could not parse JSON data from " + config_file + ":", e)
 
-        self.default_suffixes = self.config_data.get("build-suffixes", [])  # type: List[str]
-        dirs_map = map(lambda x: DirMapping(x, self.default_suffixes), self.config_data["directories"])
+        self.default_suffixes = self.config_data.get(
+            "build-suffixes", []
+        )  # type: List[str]
+        dirs_map = map(
+            lambda x: DirMapping(x, self.default_suffixes),
+            self.config_data["directories"],
+        )
         self.directories = list(dirs_map)  # type: List[DirMapping]
-        self.ignored_dirs = self.config_data.get("ignored_directories", [])  # type: List[str]
+        self.ignored_dirs = self.config_data.get(
+            "ignored_directories", []
+        )  # type: List[str]
         debug("directories:", self.directories)
 
         # cache_dir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
@@ -142,19 +160,22 @@ class DevelDirs(object):
         if self.__cache_data is None:
             try:
                 # Load the cache file:
-                with open(self.cache_file, 'r') as f:
+                with open(self.cache_file, "r") as f:
                     self.__cache_data = json.load(f)
                     # debug("Cache data:", self.__cache_data)
             except (IOError, json.decoder.JSONDecodeError):
                 self.__cache_data = {}
-                warning('Cache data was invalid, assuming empty!')
+                warning("Cache data was invalid, assuming empty!")
         assert isinstance(self.__cache_data, dict)
         return self.__cache_data
 
     @property
     def overrides(self) -> Iterable[DirMapping]:
         # we only iterate over this once, make it a lazy property
-        return map(lambda x: DirMapping(x, self.default_suffixes), self.config_data.get("overrides", []))
+        return map(
+            lambda x: DirMapping(x, self.default_suffixes),
+            self.config_data.get("overrides", []),
+        )
 
     # noinspection PyBroadException
     @staticmethod
@@ -165,11 +186,11 @@ class DevelDirs(object):
         choices = sorted(choices)
         info_message(*msg)
         for i, s in enumerate(choices):
-            info_message('  [' + str(i + 1) + ']', s)
+            info_message("  [" + str(i + 1) + "]", s)
         chosen = "<none>"
         try:
             # input prompts on stdout, but we read stdout -> print to stderr instead
-            info_message('Which one did you mean? ', end='')
+            info_message("Which one did you mean? ", end="")
             chosen = input()
             if int(chosen) < 1 or int(chosen) > len(choices):
                 raise RuntimeError("Out of range")
@@ -185,10 +206,14 @@ class DevelDirs(object):
         dirs = self.cache_data[repo_name]
         if len(dirs) == 0:
             die("Corrupted cache file:", repo_name, "is empty!")
-        return self.prompt_from_choices("Multiple source directories found for name", repo_name, choices=dirs)
+        return self.prompt_from_choices(
+            "Multiple source directories found for name", repo_name, choices=dirs
+        )
 
     @staticmethod
-    def _get_build_dir_candidates(relative_path: str, builddir: Directory, suffixes: List[str]) -> Tuple[set, set]:
+    def _get_build_dir_candidates(
+        relative_path: str, builddir: Directory, suffixes: List[str]
+    ) -> Tuple[set, set]:
         candidates = set()
         root_candidates = set()
         assert not relative_path.startswith("/")
@@ -210,14 +235,18 @@ class DevelDirs(object):
                 else:
                     debug("-> not a directory")
                     # try if this is a build directory root
-                    possible_root = os.path.join(builddir.path, *new_parts[:i + 1])
+                    possible_root = os.path.join(builddir.path, *new_parts[: i + 1])
                     if os.path.isdir(possible_root):
                         debug("   but found potential root dir:", possible_root)
                         root_candidates.add(possible_root)
         return candidates, root_candidates
 
     def _try_build_dir_mapping(self, mapping: DirMapping, path: Directory):
-        relative_path = mapping.basename if mapping.basename else path.try_replace_prefix(mapping.source, "")
+        relative_path = (
+            mapping.basename
+            if mapping.basename
+            else path.try_replace_prefix(mapping.source, "")
+        )
         if relative_path is None:
             return
         if not mapping.build_dirs:
@@ -226,16 +255,22 @@ class DevelDirs(object):
         build_root_candidates = set()
         for build_dir in mapping.build_dirs:
             # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
-            full, root_path = self._get_build_dir_candidates(relative_path, build_dir, mapping.build_suffixes)
+            full, root_path = self._get_build_dir_candidates(
+                relative_path, build_dir, mapping.build_suffixes
+            )
             candidates = candidates.union(full)
             build_root_candidates = build_root_candidates.union(root_path)
         debug("candidates", candidates, "root", build_root_candidates)
         if candidates:
-            result = self.prompt_from_choices("Multiple build directories found", choices=list(candidates))
+            result = self.prompt_from_choices(
+                "Multiple build directories found", choices=list(candidates)
+            )
             output_result(result)
         elif build_root_candidates:
-            result = self.prompt_from_choices("Multiple build root directories found",
-                                              choices=list(build_root_candidates))
+            result = self.prompt_from_choices(
+                "Multiple build root directories found",
+                choices=list(build_root_candidates),
+            )
             output_result(result)
         else:
             die("Could not find build directory for", path)
@@ -252,7 +287,9 @@ class DevelDirs(object):
         debug("Finding build dir for", path)
         # check if we are already in a build dir:
         for mapping in self.directories:
-            if any(path.is_subdirectory_of(build_dir) for build_dir in mapping.build_dirs):
+            if any(
+                path.is_subdirectory_of(build_dir) for build_dir in mapping.build_dirs
+            ):
                 sys.stderr.write("Already in build dir.\n")
                 output_result(path)
 
@@ -260,14 +297,18 @@ class DevelDirs(object):
         for override in self.overrides:
             debug("checking override", override)
             if not path.is_subdirectory_of(override.source):
-                debug("skipping", override.source, "since", path, "is not a subdirectory")
+                debug(
+                    "skipping", override.source, "since", path, "is not a subdirectory"
+                )
                 continue
             debug("Found potential build dir mapping:", override)
             self._try_build_dir_mapping(override, path)
 
         for mapping in self.directories:
             if not path.is_subdirectory_of(mapping.source):
-                debug("skipping", mapping.source, "since", path, "is not a subdirectory")
+                debug(
+                    "skipping", mapping.source, "since", path, "is not a subdirectory"
+                )
                 continue
             self._try_build_dir_mapping(mapping, path)
 
@@ -285,9 +326,20 @@ class DevelDirs(object):
                     candidate = os.path.join(mapping.source.path, repository_name)
                     debug("trying", candidate)
                     if os.path.isdir(candidate):
-                        warning("Source directory for", repository_name, "guessed as", candidate)
-                        info_message("Consider running `", sys.argv[0], " update-cache ", mapping.source.path, "`",
-                                     sep="")
+                        warning(
+                            "Source directory for",
+                            repository_name,
+                            "guessed as",
+                            candidate,
+                        )
+                        info_message(
+                            "Consider running `",
+                            sys.argv[0],
+                            " update-cache ",
+                            mapping.source.path,
+                            "`",
+                            sep="",
+                        )
                         info_message("Do you want to do this now? [y/N] ", end="")
                         if input().lower()[:1] == "y":
                             self._update_cache(mapping.source.path, 2, pretend=False)
@@ -300,7 +352,9 @@ class DevelDirs(object):
         # check if we are already in a source dir:
         for mapping in self.directories:
             # build directories can be below the source root (e.g src=~/cheri/llvm, build=~/cheri/build/llvm)
-            in_build_dir = any(cwd.is_subdirectory_of(build_dir) for build_dir in mapping.build_dirs)
+            in_build_dir = any(
+                cwd.is_subdirectory_of(build_dir) for build_dir in mapping.build_dirs
+            )
             if cwd.is_subdirectory_of(mapping.source) and not in_build_dir:
                 sys.stderr.write("Already in source dir.\n")
                 output_result(cwd)
@@ -310,14 +364,16 @@ class DevelDirs(object):
         # check whether a custom mapping exists:
         for mapping in list(self.overrides) + self.directories:
             result = self._try_as_source_directory(cwd, mapping)
-            debug("candidates for mapping '", mapping, "': ",  result, sep="")
+            debug("candidates for mapping '", mapping, "': ", result, sep="")
             if result is not None:
                 found_match = True
                 candidates = candidates.union(result)
         debug("final candidates:", candidates)
         if found_match:
             if candidates:
-                result = self.prompt_from_choices("Multiple source directories found", choices=list(candidates))
+                result = self.prompt_from_choices(
+                    "Multiple source directories found", choices=list(candidates)
+                )
                 self._check_and_output_source_dir_result(result)
             else:
                 die("Could not find source directory for", cwd)
@@ -375,7 +431,7 @@ class DevelDirs(object):
         return candidates
 
     def update_cache(self, args: argparse.Namespace):
-        info_message('saving to', self.cache_file)
+        info_message("saving to", self.cache_file)
         # noinspection PyUnresolvedReferences
         if args.path is None:
             debug("Updating all dirs")
@@ -385,7 +441,9 @@ class DevelDirs(object):
             paths = [args.path]
         # noinspection PyUnresolvedReferences
         if args.depth is None:
-            level = input("How many levels below the root would you like to search for projects? [Default=2] ")
+            level = input(
+                "How many levels below the root would you like to search for projects? [Default=2] "
+            )
             try:
                 depth = int(level) if level else 2
                 if depth < 1:
@@ -398,7 +456,9 @@ class DevelDirs(object):
             depth = args.depth
 
         if not paths:
-            die("Could not find any paths to update. Is your ~/.config/devel_dirs.json valid?")
+            die(
+                "Could not find any paths to update. Is your ~/.config/devel_dirs.json valid?"
+            )
         for path in paths:
             self._update_cache(path, depth, args.pretend)
 
@@ -406,32 +466,51 @@ class DevelDirs(object):
         info_message("Checking", path, "for projects")
         # TODO: use os.walk()? Slower but more portable
         # Also handle .gitrepo files for git-subrepo (libunwind/libcxx, etc)
-        dotgit_dirs_list = subprocess.check_output([
-            'find', path, '-maxdepth', str(depth),
-            '(', '-name', '.git', '-o', '-name', '.gitrepo', ')', '-print0']).decode('utf-8').split('\0')
+        dotgit_dirs_list = (
+            subprocess.check_output(
+                [
+                    "find",
+                    path,
+                    "-maxdepth",
+                    str(depth),
+                    "(",
+                    "-name",
+                    ".git",
+                    "-o",
+                    "-name",
+                    ".gitrepo",
+                    ")",
+                    "-print0",
+                ]
+            )
+            .decode("utf-8")
+            .split("\0")
+        )
         # -printf does not work on FreeBSD
         # we need to go up one dir from .git and use the absolute path
-        dirs_list = [os.path.realpath(os.path.dirname(p)) for p in dotgit_dirs_list if p]
+        dirs_list = [
+            os.path.realpath(os.path.dirname(p)) for p in dotgit_dirs_list if p
+        ]
         info_message(list(dirs_list))
         for d in dirs_list:
             if any(d.startswith(ignored_root) for ignored_root in self.ignored_dirs):
-                info_message('Not adding repo', d, 'since it is below an ignored dir')
+                info_message("Not adding repo", d, "since it is below an ignored dir")
                 continue
             repo_name = os.path.basename(d)
             if repo_name not in self.cache_data:
-                info_message('Adding repo', d, 'in', repo_name)
+                info_message("Adding repo", d, "in", repo_name)
                 self.cache_data[repo_name] = [d]
             elif d not in self.cache_data[repo_name]:
-                info_message('Adding', d, 'as another repo for', repo_name)
+                info_message("Adding", d, "as another repo for", repo_name)
                 self.cache_data[repo_name].append(d)
             else:
-                info_message('Repo', d, 'already exists in cache')
+                info_message("Repo", d, "already exists in cache")
         # info_message(json.dumps(self.cache_data))
         if pretend:
             json.dump(self.cache_data, sys.stdout, indent=4)
         else:
             os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
-            with open(self.cache_file, 'w+') as cacheFile:
+            with open(self.cache_file, "w+") as cacheFile:
                 json.dump(self.cache_data, cacheFile, indent=4)
                 cacheFile.flush()
 
@@ -473,54 +552,106 @@ class DevelDirs(object):
                         is_ignored = True
                         break
                 if not os.path.isdir(path) or is_ignored:
-                    reason = "is below ignored directory" if is_ignored else "no longer exists"
+                    reason = (
+                        "is below ignored directory"
+                        if is_ignored
+                        else "no longer exists"
+                    )
                     changed = True
                     if len(values) > 1:
                         values.remove(path)
                         cache_data_copy[key] = values
-                        info_message("Removed", path, "from cache for", key, "as it", reason)
+                        info_message(
+                            "Removed", path, "from cache for", key, "as it", reason
+                        )
                         info_message("   remaining paths are:", values)
                     else:
                         del cache_data_copy[key]
-                        info_message("Removed ", key, " (", path, ") from cache as it", reason, sep='')
+                        info_message(
+                            "Removed ",
+                            key,
+                            " (",
+                            path,
+                            ") from cache as it",
+                            reason,
+                            sep="",
+                        )
 
         if not changed:
             info_message("All entries in cache are valid.")
         if not pretend:
-            with open(self.cache_file, 'w+') as f:
+            with open(self.cache_file, "w+") as f:
                 json.dump(cache_data_copy, f, indent=4)
                 f.flush()
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument('--debug', action="store_true", help='Don\'t actually cleanup the cache, only print actions')
-    subparsers = parser.add_subparsers(dest='subparser_name', help='sub-command help', required=True)
-    parser_source = subparsers.add_parser('source', help='Get path to source dir')
-    parser_source.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
-    parser_source.set_defaults(func=lambda args: devel_dirs.get_source_dir(args.repository_name))
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Don't actually cleanup the cache, only print actions",
+    )
+    subparsers = parser.add_subparsers(
+        dest="subparser_name", help="sub-command help", required=True
+    )
+    parser_source = subparsers.add_parser("source", help="Get path to source dir")
+    parser_source.add_argument(
+        "repository_name", default="", nargs="?", help="The name of the repository"
+    )
+    parser_source.set_defaults(
+        func=lambda args: devel_dirs.get_source_dir(args.repository_name)
+    )
 
-    parser_build = subparsers.add_parser('build', help='Get path to build dir')
-    parser_build.add_argument('repository_name', default='', nargs='?', help='The name of the repository')
-    parser_build.set_defaults(func=lambda args: devel_dirs.get_build_dir(args.repository_name))
+    parser_build = subparsers.add_parser("build", help="Get path to build dir")
+    parser_build.add_argument(
+        "repository_name", default="", nargs="?", help="The name of the repository"
+    )
+    parser_build.set_defaults(
+        func=lambda args: devel_dirs.get_build_dir(args.repository_name)
+    )
 
-    parser_cache_lookup = subparsers.add_parser('cache-lookup',
-                                                help='Get all repositories that start with given prefix')
-    parser_cache_lookup.add_argument('name_prefix', help='The first few characters of the name')
+    parser_cache_lookup = subparsers.add_parser(
+        "cache-lookup", help="Get all repositories that start with given prefix"
+    )
+    parser_cache_lookup.add_argument(
+        "name_prefix", help="The first few characters of the name"
+    )
     parser_cache_lookup.set_defaults(func=lambda args: devel_dirs.cache_lookup(args))
 
-    parser_update_cache = subparsers.add_parser('update-cache', help='Update the source dirs cache')
-    parser_update_cache.add_argument('path', nargs='?', default=None,
-                                     help='The path where repositories are searched for')
-    parser_update_cache.add_argument('depth', nargs='?', default=None, type=int,
-                                     help='The search depth for finding repositories')
-    parser_update_cache.add_argument('--pretend', '-p', action="store_true",
-                                     help='Don\'t actually cleanup the cache, only print actions')
+    parser_update_cache = subparsers.add_parser(
+        "update-cache", help="Update the source dirs cache"
+    )
+    parser_update_cache.add_argument(
+        "path",
+        nargs="?",
+        default=None,
+        help="The path where repositories are searched for",
+    )
+    parser_update_cache.add_argument(
+        "depth",
+        nargs="?",
+        default=None,
+        type=int,
+        help="The search depth for finding repositories",
+    )
+    parser_update_cache.add_argument(
+        "--pretend",
+        "-p",
+        action="store_true",
+        help="Don't actually cleanup the cache, only print actions",
+    )
     parser_update_cache.set_defaults(func=lambda args: devel_dirs.update_cache(args))
 
-    parser_cleanup_cache = subparsers.add_parser('cleanup-cache', help='Update the source dirs cache')
-    parser_cleanup_cache.add_argument('--pretend', '-p', action="store_true",
-                                      help='Don\'t actually cleanup the cache, only print actions')
+    parser_cleanup_cache = subparsers.add_parser(
+        "cleanup-cache", help="Update the source dirs cache"
+    )
+    parser_cleanup_cache.add_argument(
+        "--pretend",
+        "-p",
+        action="store_true",
+        help="Don't actually cleanup the cache, only print actions",
+    )
     parser_cleanup_cache.set_defaults(func=lambda args: devel_dirs.cleanup_cache(args))
 
     # parse the args and call whatever function was selected
