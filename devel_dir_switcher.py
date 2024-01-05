@@ -6,7 +6,7 @@ import json
 import os
 import subprocess
 import sys
-from typing import Iterable, List, Optional, Sequence, Set, Tuple
+from typing import Iterable, Optional, Sequence, Any, NoReturn
 
 debug_enabled = os.getenv("DEVEL_DIR_DEBUG", None) is not None
 
@@ -27,7 +27,7 @@ def warning(*args, **kwargs):
     print(*args, **kwargs, file=sys.stderr)
 
 
-def die(*args, **kwargs):
+def die(*args, **kwargs) -> NoReturn:
     print(*args, **kwargs, file=sys.stderr)
     print(
         "Run command again with DEVEL_DIR_DEBUG env var set to see debug output",
@@ -99,7 +99,8 @@ class Directory:
         result = self.try_replace_prefix(prefix, replacement)
         if result is None:
             die("Could not replace prefix", prefix, "with", replacement, "in", self)
-        return result
+        else:
+            return result
 
     def __repr__(self):
         return self.path
@@ -114,10 +115,10 @@ class DirMapping:
             if not isinstance(build_json, list):
                 build_json = [build_json]
             self.build_dirs = [Directory(os.path.expandvars(s)) for s in build_json]
-        self.build_suffixes = value.get(
+        self.build_suffixes: "list[str]" = value.get(
             "build-suffixes", default_build_suffixes
-        )  # type: List[str]
-        self.basename: "Optional[list[str]]" = value.get("basename", None)
+        )
+        self.basename: "Optional[str]" = value.get("basename", None)
 
     def __repr__(self):
         return repr(self.source) + " -> " + repr(self.build_dirs)
@@ -131,23 +132,19 @@ class DevelDirs:
         try:
             self.config_data = dict()
             with open(config_file) as f:
-                self.config_data = json.load(f)  # type: dict
+                self.config_data: "dict[str, Any]" = json.load(f)
         except FileNotFoundError:
             die("Could not find config file", config_file)
         except ValueError as e:
             die("Could not parse JSON data from " + config_file + ":", e)
 
-        self.default_suffixes = self.config_data.get(
-            "build-suffixes", []
-        )  # type: List[str]
+        self.default_suffixes: "list[str]" = self.config_data.get("build-suffixes", [])
         dirs_map = map(
             lambda x: DirMapping(x, self.default_suffixes),
             self.config_data["directories"],
         )
-        self.directories = list(dirs_map)  # type: List[DirMapping]
-        self.ignored_dirs = self.config_data.get(
-            "ignored_directories", []
-        )  # type: List[str]
+        self.directories: "list[DirMapping]" = list(dirs_map)
+        self.ignored_dirs: "list[str]" = self.config_data.get("ignored_directories", [])
         debug("directories:", self.directories)
 
         # cache_dir = os.getenv("XDG_CACHE_HOME", os.path.expanduser("~/.cache"))
@@ -156,7 +153,7 @@ class DevelDirs:
         self.__cache_data = None
 
     @property
-    def cache_data(self) -> dict:
+    def cache_data(self) -> "dict[str, Any]":
         if self.__cache_data is None:
             try:
                 # Load the cache file:
@@ -212,10 +209,10 @@ class DevelDirs:
 
     @staticmethod
     def _get_build_dir_candidates(
-        relative_path: str, builddir: Directory, suffixes: List[str]
-    ) -> Tuple[set, set]:
-        candidates = set()
-        root_candidates = set()
+        relative_path: str, builddir: Directory, suffixes: "list[str]"
+    ) -> "tuple[set[str], set[str]]":
+        candidates: "set[str]" = set()
+        root_candidates: "set[str]" = set()
         assert not relative_path.startswith("/")
         debug("relative:", relative_path)
         parts = list(filter(None, relative_path.split("/")))
@@ -251,8 +248,8 @@ class DevelDirs:
             return
         if not mapping.build_dirs:
             die("No build directory defined for source root", mapping.source)
-        candidates = set()
-        build_root_candidates = set()
+        candidates: "set[str]" = set()
+        build_root_candidates: "set[str]" = set()
         for build_dir in mapping.build_dirs:
             # Try to find any suffixed dir that exists (slow but we don't
             # need to be efficient)
@@ -359,15 +356,17 @@ class DevelDirs:
                 sys.stderr.write("Already in source dir.\n")
                 output_result(cwd)
 
-        candidates = set()
+        candidates: "set[str]" = set()
         found_match = False
         # check whether a custom mapping exists:
         for mapping in list(self.overrides) + self.directories:
-            result = self._try_as_source_directory(cwd, mapping)
-            debug("candidates for mapping '", mapping, "': ", result, sep="")
-            if result is not None:
+            current_candidates = self._try_as_source_directory(cwd, mapping)
+            debug(
+                "candidates for mapping '", mapping, "': ", current_candidates, sep=""
+            )
+            if current_candidates is not None:
                 found_match = True
-                candidates = candidates.union(result)
+                candidates = candidates.union(current_candidates)
         debug("final candidates:", candidates)
         if found_match:
             if candidates:
@@ -391,9 +390,9 @@ class DevelDirs:
         output_result(result)
 
     @staticmethod
-    def _try_as_source_directory(path, mapping: DirMapping) -> Optional[Set]:
+    def _try_as_source_directory(path, mapping: DirMapping) -> "Optional[set[str]]":
         # XXXAR: this code is horrible....
-        candidates = set()
+        candidates: "set[str]" = set()
         for build_dir in mapping.build_dirs:
             # check if prefix matches
             relative_path = path.try_replace_prefix(build_dir, "")
@@ -414,7 +413,7 @@ class DevelDirs:
             # to be efficient)
             assert not relative_path.startswith("/")
             debug("relative:", relative_path)
-            parts = list(filter(None, relative_path.split("/")))
+            parts: "list[str]" = list(filter(None, relative_path.split("/")))
             debug("parts:", parts)
             for i, name in enumerate(parts):
                 debug("trying to remove suffix from", name)
@@ -452,7 +451,6 @@ class DevelDirs:
                     die("Invalid depth:", level)
             except ValueError:
                 die("Could not convert", level, "to an integer value")
-                return
         else:
             # noinspection PyUnresolvedReferences
             depth = args.depth
@@ -519,7 +517,7 @@ class DevelDirs:
 
     def cache_lookup(self, args: argparse.Namespace):
         # return all possibilities when no arg passed, otherwise filter
-        candidates = []
+        candidates: list[str] = []
         # noinspection PyUnresolvedReferences
         if len(args.name_prefix) > 0:
             for k in self.cache_data.keys():
@@ -528,7 +526,7 @@ class DevelDirs:
                     candidates.append(k)
         else:
             # just return all of them
-            candidates = self.cache_data.keys()
+            candidates = list(self.cache_data.keys())
         output_result(" ".join(candidates))
 
     def cleanup_cache(self, args: argparse.Namespace):
@@ -589,6 +587,7 @@ class DevelDirs:
 
 
 if __name__ == "__main__":
+    devel_dirs = DevelDirs()
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--debug",
@@ -659,7 +658,6 @@ if __name__ == "__main__":
 
     # parse the args and call whatever function was selected
     parsed_args = parser.parse_args()
-    devel_dirs = DevelDirs()
     if parsed_args.debug:
         debug_enabled = True
     parsed_args.func(parsed_args)
