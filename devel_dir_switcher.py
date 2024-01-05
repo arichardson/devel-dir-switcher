@@ -58,7 +58,7 @@ class Directory(object):
         self.path = os.path.abspath(path)
         if not self.path.endswith("/"):
             self.path += "/"
-        self.__real_path = None  # type: str
+        self.__real_path: Optional[str] = None
 
     @property
     def real_path(self) -> str:
@@ -106,7 +106,7 @@ class DirMapping(object):
                 build_json = [build_json]
             self.build_dirs = [Directory(os.path.expandvars(s)) for s in build_json]
         self.build_suffixes = value.get("build-suffixes", default_build_suffixes)  # type: List[str]
-        self.basename = value.get("basename", None)  # type: List[str]
+        self.basename: "Optional[list[str]]" = value.get("basename", None)
 
     def __repr__(self):
         return repr(self.source) + " -> " + repr(self.build_dirs)
