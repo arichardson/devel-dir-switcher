@@ -56,7 +56,7 @@ def safe_getcwd():
 
 
 # A class that lazily computes the real path
-class Directory(object):
+class Directory:
     def __init__(self, path: str):
         self.path = os.path.abspath(path)
         if not self.path.endswith("/"):
@@ -105,7 +105,7 @@ class Directory(object):
         return self.path
 
 
-class DirMapping(object):
+class DirMapping:
     def __init__(self, value: dict, default_build_suffixes: "list[str]"):
         self.source = Directory(os.path.expandvars(value["source"]))
         build_json = value["build"]
@@ -123,14 +123,14 @@ class DirMapping(object):
         return repr(self.source) + " -> " + repr(self.build_dirs)
 
 
-class DevelDirs(object):
+class DevelDirs:
     def __init__(self):
         # config_dir = os.getenv("XDG_CONFIG_HOME", os.path.expanduser("~/.config"))
         config_dir = os.path.expanduser("~/.config")
         config_file = os.path.join(config_dir, "devel_dirs.json")
         try:
             self.config_data = dict()
-            with open(config_file, "r") as f:
+            with open(config_file) as f:
                 self.config_data = json.load(f)  # type: dict
         except FileNotFoundError:
             die("Could not find config file", config_file)
@@ -160,10 +160,10 @@ class DevelDirs(object):
         if self.__cache_data is None:
             try:
                 # Load the cache file:
-                with open(self.cache_file, "r") as f:
+                with open(self.cache_file) as f:
                     self.__cache_data = json.load(f)
                     # debug("Cache data:", self.__cache_data)
-            except (IOError, json.decoder.JSONDecodeError):
+            except (OSError, json.decoder.JSONDecodeError):
                 self.__cache_data = {}
                 warning("Cache data was invalid, assuming empty!")
         assert isinstance(self.__cache_data, dict)
@@ -195,7 +195,7 @@ class DevelDirs(object):
             if int(chosen) < 1 or int(chosen) > len(choices):
                 raise RuntimeError("Out of range")
             return Directory(choices[int(chosen) - 1])
-        except:
+        except Exception:
             die("Invalid choice: ", chosen)
 
     def get_dir_for_repo(self, repo_name: str) -> Optional[Directory]:
@@ -222,7 +222,7 @@ class DevelDirs(object):
         if not parts:
             parts = ["/"]
         debug("parts:", parts)
-        for suffix in suffixes + [""]:
+        for suffix in (*suffixes, ""):
             for i, name in enumerate(parts):
                 new_parts = list(parts)
                 name = name.rstrip("/")
@@ -254,7 +254,8 @@ class DevelDirs(object):
         candidates = set()
         build_root_candidates = set()
         for build_dir in mapping.build_dirs:
-            # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
+            # Try to find any suffixed dir that exists (slow but we don't
+            # need to be efficient)
             full, root_path = self._get_build_dir_candidates(
                 relative_path, build_dir, mapping.build_suffixes
             )
@@ -287,9 +288,7 @@ class DevelDirs(object):
         debug("Finding build dir for", path)
         # check if we are already in a build dir:
         for mapping in self.directories:
-            if any(
-                path.is_subdirectory_of(build_dir) for build_dir in mapping.build_dirs
-            ):
+            if any(path.is_subdirectory_of(d) for d in mapping.build_dirs):
                 sys.stderr.write("Already in build dir.\n")
                 output_result(path)
 
@@ -351,7 +350,8 @@ class DevelDirs(object):
 
         # check if we are already in a source dir:
         for mapping in self.directories:
-            # build directories can be below the source root (e.g src=~/cheri/llvm, build=~/cheri/build/llvm)
+            # build directories can be below the source root (e.g. src=~/cheri/llvm,
+            # build=~/cheri/build/llvm)
             in_build_dir = any(
                 cwd.is_subdirectory_of(build_dir) for build_dir in mapping.build_dirs
             )
@@ -410,7 +410,8 @@ class DevelDirs(object):
             if not mapping.build_suffixes:
                 continue
 
-            # Try to find any suffixed dir that exists (slow but we don't need to be efficient)
+            # Try to find any suffixed dir that exists (slow but we don't need
+            # to be efficient)
             assert not relative_path.startswith("/")
             debug("relative:", relative_path)
             parts = list(filter(None, relative_path.split("/")))
@@ -418,7 +419,7 @@ class DevelDirs(object):
             for i, name in enumerate(parts):
                 debug("trying to remove suffix from", name)
                 name = name.rstrip("/")
-                for suffix in mapping.build_suffixes + [""]:
+                for suffix in (*mapping.build_suffixes, ""):
                     if not name.endswith(suffix):
                         continue
                     new_parts = list(parts)
@@ -442,7 +443,8 @@ class DevelDirs(object):
         # noinspection PyUnresolvedReferences
         if args.depth is None:
             level = input(
-                "How many levels below the root would you like to search for projects? [Default=2] "
+                "How many levels below the root would you like to search for "
+                "projects? [Default=2] "
             )
             try:
                 depth = int(level) if level else 2
@@ -457,7 +459,8 @@ class DevelDirs(object):
 
         if not paths:
             die(
-                "Could not find any paths to update. Is your ~/.config/devel_dirs.json valid?"
+                "Could not find any paths to update."
+                " Is your ~/.config/devel_dirs.json valid?"
             )
         for path in paths:
             self._update_cache(path, depth, args.pretend)
@@ -510,9 +513,9 @@ class DevelDirs(object):
             json.dump(self.cache_data, sys.stdout, indent=4)
         else:
             os.makedirs(os.path.dirname(self.cache_file), exist_ok=True)
-            with open(self.cache_file, "w+") as cacheFile:
-                json.dump(self.cache_data, cacheFile, indent=4)
-                cacheFile.flush()
+            with open(self.cache_file, "w+") as f:
+                json.dump(self.cache_data, f, indent=4)
+                f.flush()
 
     def cache_lookup(self, args: argparse.Namespace):
         # return all possibilities when no arg passed, otherwise filter
